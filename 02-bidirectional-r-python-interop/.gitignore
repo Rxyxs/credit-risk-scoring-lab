@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Datos y salidas generadas (reproducibles via run_pipeline.R)
+data/*.csv
+output/models/*.joblib
+output/models/*.rds
+output/tables/*.csv
+output/figures/*.png
+output/*.duckdb
+*.pt
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+Rplots.pdf
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+CLAUDE.md
+.claude/
