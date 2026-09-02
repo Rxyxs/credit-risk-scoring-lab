@@ -41,6 +41,3 @@ data/processed/*.duckdb
 .vscode/
 .idea/
 .DS_Store
-
-CLAUDE.md
-.claude/
