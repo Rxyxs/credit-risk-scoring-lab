@@ -9,9 +9,11 @@ data/*.csv
 output/models/*.joblib
 output/models/*.rds
 output/tables/*.csv
-output/figures/*.png
 output/*.duckdb
 *.pt
+
+# output/figures/*.png se versiona a proposito (referenciado desde el README,
+# igual que outputs/plots en 01-polyglot-scorecard-r-python-c) -- no gitignored
 
 # R
 .Rhistory

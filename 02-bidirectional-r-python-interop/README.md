@@ -14,7 +14,7 @@
 [![quantmod](https://img.shields.io/badge/market-quantmod%20%7C%20rugarch-2C5F8A)](https://www.quantmod.com/)
 [![AER](https://img.shields.io/badge/econometrics-Tobit%20%7C%20GAM-2C5F8A)](https://cran.r-project.org/package=AER)
 [![World Bank](https://img.shields.io/badge/data-World%20Bank%20API-1F6FEB)](https://data.worldbank.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](../LICENSE)
 
 </div>
 
@@ -116,7 +116,7 @@ run_pipeline.R  →  runs all 8 steps in order (see Usage below)
 | Stress testing | Basel III/IFRS9-style 3-stage ECL simulation, scenarios anchored to real historical Chilean macro episodes |
 | R → Python bridge | `reticulate` |
 | Python → R bridge | `rpy2` |
-| Visualization | matplotlib/seaborn (Python), ggplot2 (R) -- static PNGs only, no dashboard |
+| Visualization | matplotlib/seaborn (Python), ggplot2 (R) -- static PNGs, plus one self-contained interactive Plotly HTML chart, no dashboard |
 
 ## Repository structure
 
@@ -132,7 +132,8 @@ credit-risk-market-analytics-r-python/
 │   ├── explainability.py           # SHAP summary
 │   ├── fetch_macro_data.py         # real Chile macro indicators, World Bank API
 │   ├── lgd_stress_test.py          # rpy2 -> R, IFRS9/Basel III stress test
-│   └── orchestrator.py             # runs the Python side end to end
+│   ├── orchestrator.py             # runs the Python side end to end
+│   └── interactive_garch_overlay.py  # Plotly HTML, GARCH volatility regime overlay
 ├── r/
 │   ├── 00_setup.R                  # R package bootstrap
 │   ├── market_data.R               # GARCH(1,1)-driven synthetic OHLC prices
@@ -146,14 +147,17 @@ credit-risk-market-analytics-r-python/
 ├── output/
 │   ├── models/                     # trained models (generated)
 │   ├── tables/                     # result tables (generated)
-│   ├── figures/                    # PNG charts (generated)
+│   ├── figures/                    # PNG charts (versioned)
+│   ├── interactive/                # self-contained Plotly HTML chart (versioned)
 │   └── credit_risk_metrics.duckdb  # comparative model metrics (generated, gitignored)
 ├── requirements.txt                # Python dependencies
 ├── .gitignore
-├── LICENSE
 ├── README.md
 └── README.es.md
 ```
+
+License and top-level lab overview live one directory up, at the repo
+root (this project is one of two labs sharing the root `LICENSE`).
 
 ## Setup
 
@@ -192,6 +196,7 @@ Rscript r/volatility_garch.R
 Rscript r/lgd_calibration.R                         # needs data/chile_macro_indicators.csv
 .venv\Scripts\python.exe -m python.lgd_stress_test  # needs output/models/lgd_gam_fit.rds + credit_risk_scores.csv
 Rscript r/run_combined_analysis.R                   # needs the Python credit-scoring side to have run at least once
+.venv\Scripts\python.exe -m python.interactive_garch_overlay  # needs r/volatility_garch.R to have run at least once
 ```
 
 ### Tests
@@ -216,12 +221,45 @@ The raw synthetic dataset has real, deliberately injected data-quality problems,
 
 Final dataset: 8,000 clean rows (from 8,160 raw), 11.58% default rate.
 
+## Techniques used
+
+- **Data cleaning with a documented audit trail** (duplicates, mixed
+  categorical encodings, sign-flip outliers, winsorization, explicit
+  missingness-as-feature) instead of a silent `dropna()`.
+- **Logistic Regression and XGBoost** credit-scoring challengers
+  (AUC-ROC, KS, Gini), plus a **PyTorch MLP** with a custom Focal-BCE
+  loss and a ReLU/GELU/Swish activation comparison, all three on the
+  same train/test protocol.
+- **SHAP** summary explainability on the credit-scoring side.
+- **`quantmod` candlestick charting** (SMA, Bollinger Bands, RSI) and a
+  **GARCH(1,1)** volatility fit (`rugarch`, Student-t innovations) with
+  volatility-regime classification (terciles) on the market-risk side.
+- **Tobit (censored regression) and Beta-family GAM** (`AER`, `mgcv`)
+  for empirical Loss-Given-Default calibration on real Chile macro data
+  pulled live from the **World Bank Open Data API**.
+- **IFRS9/Basel III 3-stage ECL stress testing**, scenarios anchored to
+  real historical Chilean macro episodes (2020 COVID shock, 2014-2017
+  post-copper-boom slowdown).
+- **Two independent, opposite-direction language bridges**: `reticulate`
+  (R calling live Python) and `rpy2` (Python calling a live fitted R
+  model object) -- not two one-way scripts, a genuine bidirectional
+  interop project.
+- **DuckDB** for local, SQL-queryable persistence of comparative model
+  metrics and MLP predictions.
+- **Interactive Plotly visualization** (self-contained HTML) of the
+  GARCH volatility-regime overlay on the price series.
+
 ## Credit scoring results
 
 | Model | AUC-ROC | KS | Gini |
 |---|---|---|---|
 | **Logistic Regression** | **0.750** | **0.424** | **0.501** |
 | XGBoost | 0.711 | 0.338 | 0.422 |
+
+![Correlation heatmap](output/figures/credit_correlation_heatmap.png)
+![ROC curves](output/figures/credit_roc_curves.png)
+![KS curve](output/figures/credit_ks_curve.png)
+![SHAP summary](output/figures/credit_shap_summary.png)
 
 Logistic Regression beats XGBoost here -- worth stating plainly rather than assuming the fancier model wins by default. The synthetic default probability is generated as a logistic function of the features, so the model whose functional form matches the true data-generating process has an inherent edge at this sample size (8,000 rows); XGBoost's extra flexibility isn't free, it costs variance that a moderate dataset doesn't always pay back. A real finding, not a cherry-picked one.
 
@@ -264,6 +302,14 @@ All comparative metrics and the MLP's per-customer test-set predictions are also
 - GARCH(1,1) fit recovers: α₁ = 0.124 (true 0.09), β₁ = 0.854 (true 0.88), persistence 0.978 (true 0.97) -- close recovery, with more estimation noise than a 17,500-point series would give, as expected for 750 daily points.
 - Volatility regimes (terciles of conditional volatility): 250 Low / 250 Medium / 250 High trading days.
 
+![Candlestick chart](output/figures/market_candlestick.png)
+
+**Interactive version** (candlestick price panel + GARCH conditional
+volatility scatter, colored by regime; hover for exact date/value,
+zoom/pan): [GARCH volatility regime overlay](https://htmlpreview.github.io/?https://github.com/Rxyxs/credit-risk-scoring-lab/blob/main/02-bidirectional-r-python-interop/output/interactive/garch_volatility_regime_overlay.html)
+-- generated by `python/interactive_garch_overlay.py`, self-contained
+Plotly HTML (no server, no external JS).
+
 ## The combined result: stressed expected loss
 
 | Credit risk band (PD quintile) | Low volatility | Medium volatility | High volatility |
@@ -275,6 +321,8 @@ All comparative metrics and the MLP's per-customer test-set predictions are also
 | Very High | 26.2% | 30.9% | **40.7%** |
 
 Expected-loss rate = stressed PD × 45% LGD (a standard, documented, unsecured-consumer-credit assumption, not locally calibrated) × exposure, aggregated per band. Stress multipliers by regime (0.85× / 1.00× / 1.35×) are stated assumptions illustrating the wrong-way-risk concept, not a fitted relationship. This heatmap is kept exactly as-is on purpose, as an honest baseline to compare against the empirically-calibrated pipeline below.
+
+![Combined risk heatmap](output/figures/combined_risk_heatmap.png)
 
 ## Empirical LGD calibration (Tobit + GAM, real macro data)
 
@@ -319,7 +367,8 @@ Credit-applicant and loan-recovery data is 100% synthetic, generated with a fixe
 
 ## License
 
-MIT -- see [LICENSE](LICENSE).
+MIT -- see [LICENSE](../LICENSE) (repo root; this project is one of two
+labs sharing that license file).
 
 ## Author
 

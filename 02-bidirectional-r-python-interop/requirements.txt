@@ -10,3 +10,4 @@ rpy2==3.5.16
 torch>=2.2.0
 duckdb>=1.0.0
 pytest>=8.0.0
+plotly>=5.20.0

@@ -17,3 +17,4 @@ nbconvert>=7.16.0
 ipykernel>=6.29.0
 torch>=2.3.0
 duckdb>=1.0.0
+plotly>=5.20.0

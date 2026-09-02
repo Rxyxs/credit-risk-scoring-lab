@@ -112,9 +112,44 @@ que "correr todo" y "correr un paso" siempre se comportan igual.
   real de originacion de creditos que score miles de solicitudes por
   segundo necesita que la aritmetica -- no el ajuste del modelo -- sea
   lo mas rapida posible; este repo mide esa brecha en vez de solo
-  afirmarla: el motor compilado es **306x mas rapido que un loop en
-  Python puro y 12.4x mas rapido que NumPy vectorizado** en la misma
-  operacion de lookup-and-sum, reproduciendo exactamente el score de R.
+  afirmarla: en la ultima corrida medida el motor compilado es **278x
+  mas rapido que un loop en Python puro y 11.1x mas rapido que NumPy
+  vectorizado** en la misma operacion de lookup-and-sum (el throughput
+  de reloj de pared varia de corrida en corrida segun la carga de la
+  maquina -- ver la Seccion 6 para los numeros exactos), reproduciendo
+  exactamente el score de R.
+
+## Tecnicas usadas
+
+- **Binning WOE (Weight of Evidence) + Information Value**, hecho a
+  mano en R con una fusion monotona y un caso especial para variables
+  de conteo sesgadas de baja cardinalidad (ver la nota metodologica
+  abajo).
+- **Scorecard de regresion logistica con escala PDO** (Points to Double
+  the Odds) -- la convencion bancaria estandar para convertir el
+  log-odds de un `glm` en una escala de puntos interpretable.
+- **Arboles con boosting** (XGBoost, LightGBM) y **Random Forest** como
+  challengers ML, con validacion cruzada `StratifiedKFold`.
+- **SHAP** (`TreeExplainer`/`LinearExplainer`) para explicabilidad del
+  challenger, cruzado contra el propio ranking IV del scorecard.
+- **Deep learning**: un MLP en PyTorch con **Focal Loss** (consciente
+  del desbalance de clases) y una comparacion controlada de
+  activaciones ReLU/GELU/Swish.
+- **Reject inference** (Hard Cutoff, Parceling hard/soft) para corregir
+  el sesgo de seleccion de entrenar solo con solicitantes aprobados.
+- **Population Stability Index (PSI)** para monitoreo de drift del
+  score.
+- **Motor de scoring compilado en C** expuesto a Python via `ctypes`,
+  verificado bit a bit contra el scorecard calculado independientemente
+  en R.
+- **Servicio FastAPI** que pone al Champion (motor C) y al Challenger
+  ML detras de los mismos endpoints de baja latencia (patron
+  Champion/Challenger).
+- **DuckDB** para persistencia local, en archivo, consultable con SQL,
+  de metricas/predicciones entre corridas del pipeline.
+- **Visualizacion interactiva en Plotly** (HTML standalone) de la
+  distribucion del score por decil de riesgo, junto a los graficos
+  estaticos en Matplotlib.
 
 ## Stack Tecnologico
 
@@ -127,6 +162,7 @@ que "correr todo" y "correr un paso" siempre se comportan igual.
 | Motor de scoring en produccion | **C (MSVC)** | Scorer de lookup-and-sum compilado, expuesto como DLL via `ctypes`, mas un ejecutable de benchmark standalone |
 | Serving | **FastAPI, Uvicorn** | API HTTP de baja latencia que sirve tanto al Champion (motor C) como al Challenger (scikit-learn) detras de los mismos endpoints |
 | Correccion de sesgo | **scikit-learn (a medida)** | Reject inference con Hard Cutoff y Parceling (hard/soft) para el sesgo de seleccion del entrenamiento solo-aprobados |
+| Visualizacion interactiva | **Plotly** | Distribucion del score por decil de riesgo, HTML standalone |
 | Deep learning | **PyTorch** | MLP con Focal Loss a medida, comparacion de activaciones ReLU/GELU/Swish, mismo holdout que scorecard y challengers ML |
 | Persistencia de metricas | **DuckDB** | Historial de metricas y predicciones de los 3 enfoques por corrida del pipeline (`data/processed/metrics.duckdb`) |
 | Visualizacion | **Matplotlib** | 10 graficos de resultados, paleta categorica/divergente validada para accesibilidad |
@@ -159,13 +195,16 @@ chile-credit-risk-scoring-engine/
 │   ├── api.py                        # servicio FastAPI: Champion (motor C) + Challenger (ML)
 │   ├── reject_inference.py           # Hard Cutoff + Parceling (hard/soft)
 │   ├── benchmark.py
-│   └── visualization/plots.py
+│   └── visualization/
+│       ├── plots.py
+│       └── interactive_score_distribution.py  # Plotly HTML, score x decil de riesgo
 ├── notebooks/
 │   └── 02_Reject_Inference_and_Latency.ipynb
 ├── outputs/
 │   ├── models/                       # best_ml_model.joblib, best_dl_model.pt, score_engine.dll, score_bench.exe (generado)
 │   ├── reports/                      # metricas, tablas WOE/scorecard, benchmark (json/csv, generado)
-│   └── plots/                        # graficos de resultados (png, versionado)
+│   ├── plots/                        # graficos de resultados (png, versionado)
+│   └── interactive/                  # grafico Plotly HTML standalone (versionado)
 ├── data/processed/metrics.duckdb     # historial de metricas/predicciones por corrida (generado)
 ├── tests/                            # 33 tests, pytest
 ├── run_pipeline.py                   # orquestador end-to-end (Python -> R -> C -> Python)
@@ -218,6 +257,7 @@ python -m src.benchmark
 python -m src.ml_models
 python -m src.deep_learning
 python -m src.visualization.plots
+python -m src.visualization.interactive_score_distribution
 python -m src.metrics_store
 ```
 
@@ -351,6 +391,11 @@ real.
 ![Curva KS](outputs/plots/ks_chart.png)
 ![Distribucion del score](outputs/plots/score_distribution.png)
 
+**Version interactiva** (hover para ver tasa de malos, n y rango de
+score por decil; zoom/pan): [distribucion del score por decil de riesgo, set de test](https://htmlpreview.github.io/?https://github.com/Rxyxs/credit-risk-scoring-lab/blob/main/01-polyglot-scorecard-r-python-c/outputs/interactive/score_distribution_by_risk_band.html)
+-- generado por `src/visualization/interactive_score_distribution.py`,
+HTML Plotly autocontenido (sin servidor, sin JS externo).
+
 ### 4. Population Stability Index — monitoreo de drift
 
 | Comparacion | PSI | Interpretacion |
@@ -380,12 +425,18 @@ cruzado util, no solo una coincidencia de como se genero el dato.
 | Chequeo | Resultado |
 |---|---|
 | Diferencia absoluta maxima vs. el score calculado por R | **4.79 × 10⁻¹¹** (redondeo de punto flotante -- efectivamente exacto) |
-| Throughput, C (ctypes) | **274,770,566 filas/seg** |
-| Throughput, NumPy vectorizado | 22,144,127 filas/seg |
-| Throughput, loop en Python puro | 896,592 filas/seg |
-| **Speedup, C vs. Python puro** | **306.5x** |
-| **Speedup, C vs. NumPy** | **12.4x** |
-| Benchmark standalone en C (sin overhead de ctypes/Python) | ~286 millones de filas/seg |
+| Throughput, C (ctypes) | **270,592,055 filas/seg** |
+| Throughput, NumPy vectorizado | 24,310,671 filas/seg |
+| Throughput, loop en Python puro | 972,886 filas/seg |
+| **Speedup, C vs. Python puro** | **278.1x** |
+| **Speedup, C vs. NumPy** | **11.1x** |
+| Benchmark standalone en C (sin overhead de ctypes/Python, 2M filas, 3 corridas) | 133-154 millones de filas/seg |
+
+Los numeros de throughput son de reloj de pared y varian algo de
+corrida en corrida segun la carga de la maquina (esta es la ultima
+corrida medida); el chequeo de correctitud (coincidencia bit a bit
+contra R) no varia y es el numero que realmente importa para poner el
+motor en produccion.
 
 ![Benchmark del motor en C](outputs/plots/c_engine_benchmark.png)
 
@@ -405,9 +456,9 @@ Latencia end-to-end por solicitante, medida sobre 3.000 llamadas
 
 | Percentil | Champion (motor C) | Challenger (scikit-learn) | Speedup |
 |---|---|---|---|
-| p50 | 15.4 µs | 2.698,9 µs | **175.3x** |
-| p95 | 17.3 µs | 3.996,9 µs | — |
-| p99 | 36.1 µs | 7.443,5 µs | **206.1x** |
+| p50 | 28.0 µs | 4.230,9 µs | **151.1x** |
+| p95 | 42.5 µs | 5.004,5 µs | 117.8x |
+| p99 | 80.7 µs | 6.667,8 µs | **82.6x** |
 
 ![Latencia Champion vs Challenger](outputs/plots/latency_champion_vs_challenger.png)
 
@@ -496,7 +547,7 @@ suposicion a ciegas:
   holdout aleatorio, 0.238 en una poblacion deliberadamente
   desplazada -- una herramienta de gobierno que no da falsas alarmas.
 - **La ventaja de latencia del motor en C sobrevive el paso por un
-  servicio real**: 175x mas rapido en la mediana y 206x en p99 que el
+  servicio real**: 151x mas rapido en la mediana y 83x en p99 que el
   Challenger ML, de punta a punta a traves del servicio FastAPI -- no
   solo en el benchmark aislado de aritmetica.
 - **El reject inference (Parceling) reduce medible el sesgo de

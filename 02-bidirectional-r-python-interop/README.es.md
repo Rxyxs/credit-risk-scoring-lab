@@ -14,7 +14,7 @@
 [![quantmod](https://img.shields.io/badge/mercado-quantmod%20%7C%20rugarch-2C5F8A)](https://www.quantmod.com/)
 [![AER](https://img.shields.io/badge/econometria-Tobit%20%7C%20GAM-2C5F8A)](https://cran.r-project.org/package=AER)
 [![World Bank](https://img.shields.io/badge/datos-World%20Bank%20API-1F6FEB)](https://data.worldbank.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](../LICENSE)
 
 </div>
 
@@ -116,7 +116,7 @@ run_pipeline.R  →  corre los 8 pasos en orden (ver Uso abajo)
 | Stress testing | Simulacion de ECL de 3 stages tipo Basilea III/IFRS9, escenarios anclados a episodios macro reales de Chile |
 | Puente R → Python | `reticulate` |
 | Puente Python → R | `rpy2` |
-| Visualización | matplotlib/seaborn (Python), ggplot2 (R) -- solo PNGs estáticos, sin dashboard |
+| Visualización | matplotlib/seaborn (Python), ggplot2 (R) -- PNGs estáticos, más un grafico interactivo Plotly HTML autocontenido, sin dashboard |
 
 ## Estructura del repositorio
 
@@ -132,7 +132,8 @@ credit-risk-market-analytics-r-python/
 │   ├── explainability.py           # resumen SHAP
 │   ├── fetch_macro_data.py         # indicadores macro reales de Chile, API Banco Mundial
 │   ├── lgd_stress_test.py          # rpy2 -> R, stress test IFRS9/Basilea III
-│   └── orchestrator.py             # corre el lado Python de punta a punta
+│   ├── orchestrator.py             # corre el lado Python de punta a punta
+│   └── interactive_garch_overlay.py  # Plotly HTML, overlay de regimen de volatilidad GARCH
 ├── r/
 │   ├── 00_setup.R                  # instalacion de paquetes R
 │   ├── market_data.R               # precios OHLC sinteticos via GARCH(1,1)
@@ -146,14 +147,18 @@ credit-risk-market-analytics-r-python/
 ├── output/
 │   ├── models/                     # modelos entrenados (generado)
 │   ├── tables/                     # tablas de resultados (generado)
-│   ├── figures/                    # graficos PNG (generado)
+│   ├── figures/                    # graficos PNG (versionado)
+│   ├── interactive/                # grafico Plotly HTML autocontenido (versionado)
 │   └── credit_risk_metrics.duckdb  # metricas comparativas de modelos (generado, en .gitignore)
 ├── requirements.txt                # dependencias Python
 ├── .gitignore
-├── LICENSE
 ├── README.md
 └── README.es.md
 ```
+
+La licencia y el resumen general del laboratorio viven un nivel arriba,
+en la raiz del repositorio (este proyecto comparte el `LICENSE` de la
+raiz con el otro laboratorio).
 
 ## Instalación
 
@@ -193,6 +198,7 @@ Rscript r/volatility_garch.R
 Rscript r/lgd_calibration.R                         # necesita data/chile_macro_indicators.csv
 .venv\Scripts\python.exe -m python.lgd_stress_test  # necesita output/models/lgd_gam_fit.rds + credit_risk_scores.csv
 Rscript r/run_combined_analysis.R                   # necesita que el lado Python de credit scoring haya corrido antes
+.venv\Scripts\python.exe -m python.interactive_garch_overlay  # necesita que r/volatility_garch.R haya corrido antes
 ```
 
 ### Tests
@@ -217,12 +223,48 @@ El dataset sintético crudo tiene problemas de calidad de datos reales, inyectad
 
 Dataset final: 8.000 filas limpias (de 8.160 crudas), tasa de default 11,58%.
 
+## Técnicas usadas
+
+- **Limpieza de datos con rastro de auditoría documentado** (duplicados,
+  codificaciones categóricas mezcladas, outliers por bug de signo,
+  winsorización, ausencia explícita como feature) en vez de un
+  `dropna()` silencioso.
+- **Regresión Logística y XGBoost** como challengers de credit scoring
+  (AUC-ROC, KS, Gini), más un **MLP en PyTorch** con loss custom
+  Focal-BCE y comparación de activaciones ReLU/GELU/Swish, los tres
+  bajo el mismo protocolo train/test.
+- **Resumen SHAP** de explicabilidad en el lado credit scoring.
+- **Velas japonesas con `quantmod`** (SMA, Bandas de Bollinger, RSI) y
+  un ajuste **GARCH(1,1)** (`rugarch`, innovaciones t-Student) con
+  clasificación de régimen de volatilidad (terciles) en el lado riesgo
+  de mercado.
+- **Tobit (regresión censurada) y GAM familia Beta** (`AER`, `mgcv`)
+  para calibración empírica de Loss-Given-Default sobre datos macro
+  reales de Chile obtenidos en vivo de la **API abierta del Banco
+  Mundial**.
+- **Stress testing ECL de 3 etapas IFRS9/Basilea III**, escenarios
+  anclados a episodios macro reales de Chile (shock COVID 2020,
+  desaceleración post-boom del cobre 2014-2017).
+- **Dos puentes de lenguaje independientes, en direcciones opuestas**:
+  `reticulate` (R llamando a Python vivo) y `rpy2` (Python llamando a
+  un modelo R vivo ya entrenado) -- no dos scripts de una sola vía, un
+  proyecto de interoperabilidad genuinamente bidireccional.
+- **DuckDB** para persistencia local, consultable con SQL, de métricas
+  comparativas de modelos y predicciones del MLP.
+- **Visualización interactiva en Plotly** (HTML autocontenido) del
+  overlay de régimen de volatilidad GARCH sobre la serie de precios.
+
 ## Resultados de credit scoring
 
 | Modelo | AUC-ROC | KS | Gini |
 |---|---|---|---|
 | **Regresión Logística** | **0,750** | **0,424** | **0,501** |
 | XGBoost | 0,711 | 0,338 | 0,422 |
+
+![Heatmap de correlación](output/figures/credit_correlation_heatmap.png)
+![Curvas ROC](output/figures/credit_roc_curves.png)
+![Curva KS](output/figures/credit_ks_curve.png)
+![Resumen SHAP](output/figures/credit_shap_summary.png)
 
 La Regresión Logística le gana a XGBoost aquí -- vale la pena decirlo directamente en vez de asumir que el modelo más sofisticado siempre gana. La probabilidad de default sintética se genera como una función logística de las features, así que el modelo cuya forma funcional coincide con el proceso generador real tiene una ventaja inherente a este tamaño de muestra (8.000 filas); la flexibilidad extra de XGBoost no es gratis, cuesta varianza que un dataset moderado no siempre recupera. Un hallazgo real, no uno elegido a conveniencia.
 
@@ -265,6 +307,14 @@ Todas las métricas comparativas y las predicciones por cliente del MLP en el se
 - El ajuste GARCH(1,1) recupera: α₁ = 0,124 (real 0,09), β₁ = 0,854 (real 0,88), persistencia 0,978 (real 0,97) -- recuperación cercana, con más ruido de estimación del que daría una serie de 17.500 puntos, como es esperable para 750 puntos diarios.
 - Regímenes de volatilidad (terciles de la volatilidad condicional): 250 días de Baja / 250 de Media / 250 de Alta.
 
+![Gráfico de velas](output/figures/market_candlestick.png)
+
+**Versión interactiva** (panel de precio en velas + dispersión de
+volatilidad condicional GARCH, coloreada por régimen; hover para ver
+fecha/valor exacto, zoom/pan): [overlay de régimen de volatilidad GARCH](https://htmlpreview.github.io/?https://github.com/Rxyxs/credit-risk-scoring-lab/blob/main/02-bidirectional-r-python-interop/output/interactive/garch_volatility_regime_overlay.html)
+-- generado por `python/interactive_garch_overlay.py`, HTML Plotly
+autocontenido (sin servidor, sin JS externo).
+
 ## El resultado combinado: pérdida esperada estresada
 
 | Banda de riesgo crediticio (quintil de PD) | Volatilidad Baja | Volatilidad Media | Volatilidad Alta |
@@ -276,6 +326,8 @@ Todas las métricas comparativas y las predicciones por cliente del MLP en el se
 | Muy Alto | 26,2% | 30,9% | **40,7%** |
 
 Tasa de pérdida esperada = PD estresada × 45% LGD (un supuesto estándar de industria para crédito de consumo no garantizado, no calibrado localmente) × exposición, agregada por banda. Los multiplicadores de estrés por régimen (0,85× / 1,00× / 1,35×) son supuestos declarados que ilustran el concepto de wrong-way risk, no una relación ajustada estadísticamente. Este heatmap se deja exactamente como esta a proposito, como comparacion honesta de linea base frente al pipeline empiricamente calibrado de abajo.
+
+![Heatmap de riesgo combinado](output/figures/combined_risk_heatmap.png)
 
 ## Calibración empírica de LGD (Tobit + GAM, datos macro reales)
 
@@ -320,7 +372,8 @@ Los datos de solicitantes de credito y de recuperacion de prestamos son 100% sin
 
 ## Licencia
 
-MIT -- ver [LICENSE](LICENSE).
+MIT -- ver [LICENSE](../LICENSE) (raiz del repositorio; este proyecto
+comparte ese archivo de licencia con el otro laboratorio).
 
 ## Autor
 
