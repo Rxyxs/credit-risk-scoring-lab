@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.data_generator import generate_portfolio
 from src.preprocessing import apply_scaler, fit_scaler, load_loan_book, split_train_test
 from src.term_structure import (
     LGD, UMBRAL_SICR, asignar_bandas, curva_agregada, provision_ifrs9, tabla_por_banda,
@@ -73,8 +74,15 @@ def test_umbral_sicr_manda_a_stage_2_a_la_cola_de_riesgo():
     assert p["pct_cartera_stage_2"] == pytest.approx(esperados / len(test))
 
 
-def test_split_no_filtra_creditos_entre_train_y_test():
-    df = load_loan_book()
+def test_split_no_filtra_creditos_entre_train_y_test(tmp_path):
+    # load_loan_book lee de disco; se genera una cartera propia en un CSV
+    # temporal en vez de depender del archivo real de data/raw (gitignored,
+    # producido por `python -m src.data_generator` como parte del pipeline).
+    df_generado, _ = generate_portfolio(n=500, seed=7)
+    ruta = tmp_path / "loan_book.csv"
+    df_generado.to_csv(ruta, index=False)
+
+    df = load_loan_book(ruta)
     train, test = split_train_test(df)
     assert len(train) + len(test) == len(df)
     assert set(train["loan_id"]) & set(test["loan_id"]) == set()
