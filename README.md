@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![R](https://img.shields.io/badge/R-4.4-276DC3?logo=r&logoColor=white)](https://www.r-project.org/)
 [![C](https://img.shields.io/badge/C-MSVC-A8B9CC?logo=c&logoColor=white)](https://en.wikipedia.org/wiki/C_(programming_language))
-[![Techniques](https://img.shields.io/badge/techniques-8-2C5F8A)](#the-eight-techniques)
+[![Techniques](https://img.shields.io/badge/techniques-8-2C5F8A)](#the-eight-techniques-in-detail)
 [![Tests](https://img.shields.io/badge/tests-194%20in%20techniques%2003--08-brightgreen?logo=pytest&logoColor=white)](#testing-standard)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
@@ -33,20 +33,7 @@ why the data is simulated from a known process: when you control the truth,
 "the model recovered the real coefficients" or "91.6% of that gap is
 legitimate" stops being a claim and becomes a measurement.
 
-## The eight techniques
-
-| # | Technique | Folder | The problem it takes on |
-|---|---|---|---|
-| 01 | Polyglot scorecard (R + Python + C) | [`01-polyglot-scorecard-r-python-c`](01-polyglot-scorecard-r-python-c) | The same scorecard has to be interpretable *and* fast in production, and those pull in different directions. R builds the regulatory WOE/IV scorecard, Python trains ML challengers with SHAP, C implements the compiled scoring hot path. |
-| 02 | Bidirectional R↔Python interop | [`02-bidirectional-r-python-interop`](02-bidirectional-r-python-interop) | Credit risk is not estimated in isolation from market risk, and the right tooling for each lives in a different language. Two live bridges — `reticulate` and `rpy2` — plus GARCH volatility and empirically calibrated LGD on real Chilean macro data. |
-| 03 | Lifetime PD from survival analysis | [`03-survival-lifetime-pd-term-structure`](03-survival-lifetime-pd-term-structure) | A 12-month PD says nothing about *when* risk arrives — which is exactly what IFRS 9 provisioning turns on. Cox proportional hazards from scratch plus a discrete-time hazard model, turned into a PD term structure. |
-| 04 | Bayesian hierarchical scorecard | [`04-bayesian-hierarchical-partial-pooling`](04-bayesian-hierarchical-partial-pooling) | One model for a heterogeneous portfolio is wrong, one model per segment is noise, and a point estimate hides how much the model actually knows. Partial pooling over 32 segments via a Pólya-Gamma Gibbs sampler. |
-| 05 | Monotonic constraints + conformal decisioning | [`05-monotonic-constraints-conformal-decisioning`](05-monotonic-constraints-conformal-decisioning) | A model that contradicts the domain does not get approved, and a model that cannot abstain automates decisions it should not be making. Constrained gradient boosting audited by counterfactual perturbation, wrapped in a conformal predictor. |
-| 06 | Optimal-binning scorecard | [`06-optimal-binning-scorecard`](06-optimal-binning-scorecard) | The binning step decides most of a scorecard's quality and is usually done by habit; and a model nobody monitors fails silently. Binning as a constrained optimisation solved exactly, plus PSI/CSI backtesting by vintage. |
-| 07 | Fair lending bias audit | [`07-fair-lending-bias-audit`](07-fair-lending-bias-audit) | Leaving the protected attribute out of the model does not make the decision fair, and the usual fixes are rarely priced. Five fairness metrics with confidence intervals, a proxy detector, and four mitigations costed in AUC and pesos. |
-| 08 | Differentially private scoring | [`08-differential-privacy-scoring`](08-differential-privacy-scoring) | The model itself carries information about the people it was trained on, and "the data is anonymised" does not address that. DP-SGD and an RDP accountant from scratch, then attacked to see whether the guarantee means anything. |
-
-### Where each one sits in the credit lifecycle
+### Where each technique sits in the credit lifecycle
 
 ```mermaid
 flowchart LR
@@ -70,21 +57,376 @@ flowchart LR
     O --> D --> P --> G
 ```
 
-## Results at a glance
+### Results at a glance
 
-Every number comes from an actual run of that folder's pipeline and is
-reproduced in its README with full context — including the caveat next to it:
+| # | Technique | Headline result | The caveat that comes with it |
+|---|---|---|---|
+| [01](#01--polyglot-scorecard-r--python--c) | Polyglot scorecard | C engine matches R's scorecard to **4.79e-11** at **270.6M rows/s** | The interpretable scorecard also *won* on accuracy — reported plainly, not spun |
+| [02](#02--bidirectional-rpython-interop) | R↔Python interop | Empirical LGD **67.4% → 83.7%** in a recession scenario; ECL **+24.2%** | A linear macro assumption understates the tail by 8.6 points |
+| [03](#03--lifetime-pd-from-survival-analysis) | Lifetime PD | **50.5%** of lifetime risk arrives after month 12; provisions **+19.3%** | The time-varying term is significant in-sample and moves AUC by −0.0003 |
+| [04](#04--bayesian-hierarchical-scorecard) | Hierarchical Bayes | Segment-effect error **−39%**; τ posterior covers the true value | The uncertainty-aware cutoff **lost** 3.6% of profit |
+| [05](#05--monotonic-constraints--conformal-decisioning) | Monotonic + conformal | Violations **97.15% → 0.00%** at no accuracy cost | Conformal review volume is 50% of the book at α = 0.10 |
+| [06](#06--optimal-binning-scorecard) | Optimal binning | **+13% IV** over deciles, zero non-monotone variables, bands separate **9.3×** | A greedy tree still edges it by 0.7 pp of out-of-time AUC |
+| [07](#07--fair-lending-bias-audit) | Fair lending audit | Gender reconstructed from the model's own features at **AUC 0.768** | Dropping the proxy made the disparity **worse** |
+| [08](#08--differentially-private-scoring) | Differential privacy | Canaries prove memorisation (**t = 44.8**); ε = 1 makes it undetectable | That budget costs **18.4% of AUC** |
 
-| # | Headline result | The caveat that comes with it |
-|---|---|---|
-| 01 | C scoring engine matches R's scorecard to **4.79e-11**; scorecard Gini 0.466 vs. 0.461 for the best ML challenger | The interpretable model won on this data — reported plainly rather than dressed up as a fancier-model story |
-| 02 | Empirically calibrated LGD **67.4% → 83.7%** under a 2020-anchored recession; portfolio ECL **+24.2%** | Assuming a linear macro relationship understates the tail by 8.6 points |
-| 03 | **50.5%** of lifetime default risk arrives after month 12; IFRS 9 staging raises provisions **+19.3%** | The time-varying term is overwhelming in-sample (p = 2.9e-06) and moves out-of-sample AUC by −0.0003 |
-| 04 | Partial pooling cuts segment-effect error **39%**; τ posterior 0.515 [0.391, 0.668] covers the true 0.450 | The uncertainty-aware cutoff **lost** 3.6% of profit — a measured negative result, kept as one |
-| 05 | Monotonic constraints take violations from **97.15% of applicants to 0.00%** at no accuracy cost (AUC 0.7655 → 0.7695) | The conformal policy sends 50% of the book to manual review at α = 0.10; that headcount has to be priced |
-| 06 | DP binning finds **13% more IV** than deciles with zero non-monotone variables; risk bands separate **9.3×** | A greedy tree still edges it by 0.7 pp of out-of-time AUC — the grid-resolution sweep shows why |
-| 07 | The model reconstructs gender from its own features with **AUC 0.768**; **91.6%** of the gap is legitimate correlation | Dropping the proxy made the disparity **worse** (−2.53 → −4.14 pp) |
-| 08 | Injected canaries prove memorisation without DP (**+2.50 pp, t = 44.8**); ε = 1 makes the leak undetectable | That budget costs **18.4% of AUC**, and the textbook membership attack found nothing anywhere — including in the model that demonstrably leaked |
+---
+
+# The eight techniques, in detail
+
+## 01 · Polyglot scorecard (R + Python + C)
+
+**Folder:** [`01-polyglot-scorecard-r-python-c`](01-polyglot-scorecard-r-python-c)
+
+**The problem.** A scorecard has two masters. The risk committee and the
+regulator want to read it — every variable, every band, every point. The
+origination system wants to score an application in the time it takes a page to
+load, thousands of times a minute. Those requirements pull the design in
+opposite directions, and the usual answer is to pick one and apologise for the
+other.
+
+**The method.** Each language does the job it actually does in a risk
+department. **R** builds the regulatory WOE/IV scorecard with logistic
+regression and PDO points. **Python** trains the ML challengers (XGBoost,
+LightGBM, Random Forest) with SHAP explainability, a PyTorch MLP with focal
+loss, and reject-inference experiments. **C** implements the compiled scoring
+hot path, exposed through `ctypes`, and its output is verified against R's
+score rather than assumed equal. A FastAPI service exposes champion and
+challenger behind the same endpoint.
+
+![Scoring engine benchmark](01-polyglot-scorecard-r-python-c/outputs/plots/c_engine_benchmark.png)
+
+*Throughput over 1,000,000 rows, log scale. The compiled engine scores 270.6M
+rows/second against 24.3M for vectorised NumPy and 0.97M for a pure-Python
+loop — and produces the same number as R's scorecard to within 4.79e-11, which
+is the part that makes the speed usable rather than merely impressive.*
+
+**What came out.** The scorecard reached Gini 0.466 and KS 0.358; the best ML
+challenger reached Gini 0.461. **The interpretable model won**, and the project
+says so instead of reframing the comparison. The reject-inference section finds
+that AUC measured only on approved applicants is consistently lower than on the
+full population — a textbook selection effect, measured rather than cited.
+
+---
+
+## 02 · Bidirectional R↔Python interop
+
+**Folder:** [`02-bidirectional-r-python-interop`](02-bidirectional-r-python-interop)
+
+**The problem.** Credit risk and market risk are managed together and modelled
+apart. Default rates and market volatility rise together — the wrong-way risk a
+risk committee worries about — but the natural tooling for each lives in a
+different language: pandas and XGBoost on one side, `quantmod`, `rugarch` and
+censored regression on the other.
+
+**The method.** Two genuine bridges running in opposite directions, not two
+folders exchanging CSVs. `reticulate` lets R call Python and receive a live
+pandas DataFrame as an R data frame; `rpy2` lets Python call R and load a
+trained R model object. Python handles cleaning and credit scoring; R handles
+candlestick market analysis, GARCH volatility, and LGD calibrated empirically
+with Tobit and GAM on **real Chilean macro data** from the World Bank API.
+
+![Combined credit and market risk heatmap](02-bidirectional-r-python-interop/output/figures/combined_risk_heatmap.png)
+
+*The centrepiece: expected loss per credit-risk band stressed against three
+market-volatility regimes — one number a risk committee can read, produced by a
+Python ML model and an R econometric model in the same figure.*
+
+**What came out.** PD discrimination of AUC 0.750 / KS 0.424 from logistic
+regression (again beating XGBoost, again reported plainly). Empirically
+calibrated LGD of **67.4%** in the base scenario against the industry-typical
+flat 45% assumption, rising to **83.7%** in a 2020-anchored severe scenario, and
+portfolio ECL **+24.2%** under IFRS 9 staging. Assuming a *linear* macro
+relationship understates the severe-scenario LGD by 8.6 points — the argument
+for fitting a GAM rather than a regression line.
+
+---
+
+## 03 · Lifetime PD from survival analysis
+
+**Folder:** [`03-survival-lifetime-pd-term-structure`](03-survival-lifetime-pd-term-structure) · 38 tests
+
+**The problem.** A scorecard answers *whether* a borrower defaults in the next
+12 months. It cannot answer *when*, and "when" is what provisioning turns on:
+IFRS 9 asks for a 12-month expected loss in Stage 1 and a **lifetime** expected
+loss in Stage 2. A single number cannot produce both.
+
+**The method.** Model the hazard instead of the label. Every loan is followed
+month by month until it defaults, prepays, or leaves the observation window, and
+a censored loan is treated as an incomplete observation rather than a good
+customer. Cox proportional hazards is written from scratch — Breslow *and* Efron
+partial likelihoods, analytic gradient and Hessian via suffix cumulative sums,
+damped Newton-Raphson, scaled Schoenfeld residuals — alongside a discrete-time
+hazard model on person-period data, which handles monthly ties exactly.
+
+![Estimated hazard vs. the true generating hazard](03-survival-lifetime-pd-term-structure/outputs/plots/hazard_base_vs_verdad.png)
+
+*The estimated hazard against the one the simulator actually used. The seasoning
+hump — risk climbing after origination, peaking around month 8-10, then
+declining — is recovered, and the curve gets visibly noisier past month 25 as
+loans with 12- and 24-month terms leave the book and thin the risk set. That
+degradation is in the chart because it is real.*
+
+![PD term structure by risk band](03-survival-lifetime-pd-term-structure/outputs/plots/pd_term_structure.png)
+
+*Left: cumulative PD by horizon for each risk band, with the 12-month
+Stage 1 cut-off marked. Right: when the risk actually arrives across the
+portfolio. Band A reaches 2.4% at 12 months and 6.6% over the full life —
+almost two thirds of its risk sits beyond the cut-off a 12-month model can see.*
+
+**What came out.** The from-scratch engine recovers the simulator's
+coefficients with a mean absolute error of **0.0224**, its analytic gradient
+matches finite differences to 6.7e-07, and the Schoenfeld test flags **exactly
+one** covariate — the one built to have a decaying effect — with no false
+alarms among the other eight. Out of sample: C-index 0.7841, AUC 0.8132 at 12
+months. **50.5% of lifetime default risk arrives after month 12**, and
+recognising that on the 9.3% of the book that trips the SICR proxy raises
+provisions from CLP 660.6M to 787.8M (**+19.3%**).
+
+**The caveat.** The time-varying specification is overwhelming in-sample
+(LR = 21.91, p = 2.9e-06) and moves out-of-sample AUC by **−0.0003**. It earns
+its place by improving calibration (−13% error), not ranking — and the pipeline
+selects on that basis, in code.
+
+---
+
+## 04 · Bayesian hierarchical scorecard
+
+**Folder:** [`04-bayesian-hierarchical-partial-pooling`](04-bayesian-hierarchical-partial-pooling) · 34 tests
+
+**The problem.** A portfolio is never one population. The same bank lends in
+Santiago and in Los Lagos, to salaried and informal borrowers, through branches
+and an app. Modelling them together prices a thin segment as the portfolio
+average; modelling them separately turns 30 observations into policy. And a
+point estimate says nothing about which of the two situations you are in.
+
+**The method.** Partial pooling: each segment's effect is drawn from a common
+distribution whose spread τ is itself estimated, so segments with history keep
+their own estimate and thin ones are pulled toward the average — no shrinkage
+constant to choose. The sampler is written from scratch on **Pólya-Gamma
+augmentation**, which makes the logistic likelihood conditionally Gaussian and
+collapses the whole thing into closed-form Gibbs steps: no Metropolis, no
+acceptance rate, no tuning. Split R̂ and Geyer ESS are also implemented directly.
+
+![Shrinkage by segment](04-bayesian-hierarchical-partial-pooling/outputs/plots/shrinkage_por_segmento.png)
+
+*Left: each segment's estimated effect with and without pooling, against how
+many training cases it has (log scale). The grey lines are the shrinkage — long
+where the data is thin, almost invisible where it is plentiful. Right:
+recovery against the simulator's true effects; the pooled estimates sit closer
+to the diagonal.*
+
+**What came out.** Partial pooling wins on every predictive metric (AUC 0.8309,
+best log-loss) and cuts the error in recovered segment effects by **39%**
+against both extremes. The dispersion parameter comes back at **τ = 0.515 with
+a 90% credible interval of [0.391, 0.668]**, covering the true 0.450 — and the
+model was never told that segments differ at all. The no-pooling configuration
+legitimately fails its convergence check (R̂ = 1.36), because the intercept and
+the segment effects are only identified through their *sum*; diagnosing that sum
+separately (R̂ = 1.0028) distinguishes "this model is broken" from "this
+parameterisation is not identifiable".
+
+**The caveat.** Deciding with the 95th percentile of the posterior instead of
+its mean **cost 3.6% of profit** at 80% approval. The mechanism works as
+designed — the applicants it declines carry 2.5× the portfolio's posterior
+standard deviation — but there was not enough uncertainty left, at this sample
+size, for caution to pay. Reported as the measured negative result it is.
+
+---
+
+## 05 · Monotonic constraints + conformal decisioning
+
+**Folder:** [`05-monotonic-constraints-conformal-decisioning`](05-monotonic-constraints-conformal-decisioning) · 23 tests
+
+**The problem.** Two things sink a model in the room where it gets approved,
+and neither is AUC. The first: it answers a question wrong in a way anyone can
+see — *if this applicant's debt burden rises and nothing else changes, does the
+model say the risk is higher?* The second: it has no way to say "I don't know",
+so it decides on applicants it has no business deciding on.
+
+**The method.** Monotonic constraints where domain knowledge supports them
+(seven features), and deliberately **not** on age, whose true effect is
+U-shaped. Then a counterfactual audit that moves one variable along a grid per
+applicant, holding everything else fixed, and counts reversals. On top, a
+Mondrian split-conformal predictor turns PD into approve / manual review /
+decline with a distribution-free coverage guarantee.
+
+![Monotonicity audit](05-monotonic-constraints-conformal-decisioning/outputs/plots/auditoria_monotonia.png)
+
+*The unconstrained model violates monotonicity for up to 97.6% of applicants on
+a single variable, with reversals as large as 14.5 points of PD. The constrained
+model's bars are invisible because they are zero — by construction, not by luck.
+Note also that its *average* response curve looks almost fine: the violations
+are individual-level, which is exactly the level a customer complaint or a
+supervisory review operates at.*
+
+![Conformal coverage by class](05-monotonic-constraints-conformal-decisioning/outputs/plots/cobertura_conforme.png)
+
+*Why the class-conditional (Mondrian) variant matters. Left: coverage tracks the
+target for both classes. Right: the marginal version hits the same global target
+while covering the paying class at 99% and letting the default class fall to
+57%. With a 23% base rate, "90% coverage" computed over the pooled population is
+almost entirely a statement about the majority class.*
+
+**What came out.** Constraining cost **nothing**: AUC went from 0.7655 to
+**0.7695** — with a truly monotone risk process the constraint removes exactly
+the flexibility that was fitting noise. At α = 0.10, the conformal three-way
+policy makes **a third fewer errors** in what it automates than a score band
+sending the same volume to review (19.79% vs. 29.41%), and 8% more profit. A
+covariate-shift stress test then shows where the guarantee breaks: on a
+deteriorated portfolio the paying class drops nine points below target and
+automatic approvals halve — recalibrating on 2,100 new cases restores it.
+
+**The caveat.** Half the book goes to manual review at α = 0.10. That is the
+model honestly reporting that it cannot rule out either label for most
+applicants, but the analysts have to be paid for; the α sweep prices that dial.
+
+---
+
+## 06 · Optimal-binning scorecard
+
+**Folder:** [`06-optimal-binning-scorecard`](06-optimal-binning-scorecard) · 34 tests
+
+**The problem.** The least glamorous step in a scorecard decides most of its
+quality: **where each variable gets cut**. The usual answers are deciles (fast,
+blind to the label) or a decision tree (uses the label, but is a greedy
+heuristic with no guarantee of optimality and none at all of monotonicity). And
+once deployed, a scorecard that nobody monitors fails silently.
+
+**The method.** State binning as what it is — partition an ordered axis to
+maximise Information Value subject to at most K bins, a minimum population and
+event count per bin, and a monotone WOE sequence — and solve it **exactly** by
+dynamic programming over all-segment prefix sums. Then a points card with the
+standard PDO transformation, and PSI/CSI monitoring replayed vintage by vintage
+against a book with a known population break.
+
+![WOE by binning method](06-optimal-binning-scorecard/outputs/plots/woe_por_metodo.png)
+
+*The same three variables, cut three ways. The DP produces a clean monotone WOE
+in every case; the tree zig-zags on line utilisation (down, up, down, up across
+consecutive bins) — a card no one wants to defend. On age, whose true effect is
+U-shaped, the monotone DP deliberately gives up IV rather than fake a shape the
+domain does not have.*
+
+![PSI and CSI by vintage](06-optimal-binning-scorecard/outputs/plots/psi_csi_por_vintage.png)
+
+*Left: PSI stays under 0.025 for eighteen stable vintages — no false alarms —
+and jumps to 0.36 in the exact cohort where the population breaks. Right: CSI
+per variable names the culprit rather than just raising a flag; line
+utilisation is the variable the simulator shifted hardest.*
+
+**What came out.** The DP recovers **13% more IV** than equal-frequency binning
+and is the only method producing a card with zero non-monotone variables. The
+resulting bands separate **9.3×** in observed default rate (47.79% in band E vs.
+5.16% in band A). The exactness claim is not rhetorical: a test enumerates
+*every* feasible partition on small instances and the DP matches, with and
+without the monotonicity constraint.
+
+**The caveat, and the more interesting finding.** A greedy tree still edges the
+DP by 0.7 pp of out-of-time AUC — because the DP can only cut on pre-binning
+grid boundaries, which the grid-resolution sweep demonstrates by converging to
+the tree's cut points as the grid refines. And the monitoring result cuts
+against the obvious reading: PSI screamed (0.36, fourteen times the alert
+threshold) **while the model stayed correct** — AUC actually rose and calibration
+held within 0.12 pp. The population changed; the model was right about it.
+
+---
+
+## 07 · Fair lending bias audit
+
+**Folder:** [`07-fair-lending-bias-audit`](07-fair-lending-bias-audit) · 22 tests
+
+**The problem.** Every credit model starts from the same rule: the protected
+attribute does not go into the model. That rule is legally required and, as a
+fairness guarantee, close to worthless on its own — if the features correlate
+enough with the group, the model reconstructs it whether or not anyone intended
+that.
+
+**The method.** A simulator where **gender is absent from the process that
+generates default**, but correlates with income and job tenure (a wage gap,
+interrupted careers) and where the labour sector is strongly gender-segregated
+while carrying almost no risk signal. Any disparity found downstream is
+therefore legitimate correlation or model artefact, never causation. Then five
+fairness metrics with bootstrap intervals, a per-feature proxy detector, a
+stratified decomposition of the gap, and four mitigations compared at equal
+approval volume.
+
+![Proxy detection](07-fair-lending-bias-audit/outputs/plots/deteccion_de_proxies.png)
+
+*Left: each feature's group signal against its risk signal. Everything sits
+below the diagonal — earning its place — except `sector`, which carries far more
+information about gender than about default. Right: the same as a ratio on a log
+scale, with the headline above it: a model that never sees gender can
+reconstruct it from its own inputs with AUC 0.768.*
+
+**What came out.** `sector` carries **11× more group signal than risk signal**.
+The gap in predicted PD is **+1.430 pp raw and +0.120 pp between comparable
+profiles** — **91.6% is legitimate correlation** with income and debt burden.
+The five metrics are reported with intervals: adverse impact ratio 0.9688
+[0.9462, 0.9971], comfortably above the 0.80 regulatory threshold; demographic
+parity −2.53 pp [−4.39, −0.23], small but distinguishable from zero; and a
+calibration gap that is **not** distinguishable from zero.
+
+**The caveat — the most useful result in the project.** Removing the proxy made
+the disparity **worse** (−2.53 → −4.14 pp). The group information `sector`
+carried was *favourable*: female-dominated sectors carry slightly lower risk, so
+including it was partially offsetting the income gap. "Drop the correlated
+variables" is a rule of thumb that moves fairness in either direction, and it
+has to be measured per variable on the actual book.
+
+---
+
+## 08 · Differentially private scoring
+
+**Folder:** [`08-differential-privacy-scoring`](08-differential-privacy-scoring) · 43 tests
+
+**The problem.** A credit model is trained on the most sensitive data a person
+hands over, and then it leaves the room — to a vendor, into an API, sometimes
+into a paper. Anonymising the training table does not settle it, because the
+model itself carries information about the people in it.
+
+**The method.** Both halves written from scratch. **DP-SGD**: per-example
+gradients, L2 clipping to bound one person's influence, Gaussian noise, and
+Poisson subsampling — the sampling scheme the accounting actually assumes.
+**An RDP accountant** for the subsampled Gaussian mechanism, composed over
+training steps and converted to (ε, δ), with noise calibrated by binary search
+to a target budget. And then the part most DP write-ups skip: attacking the
+result, with a membership-inference attack and 40 injected canaries — pristine
+applicant profiles labelled as defaults, whose elevated PD can only be
+memorisation.
+
+![Privacy versus utility](08-differential-privacy-scoring/outputs/plots/privacidad_vs_utilidad.png)
+
+*Left: what privacy costs — AUC against ε, averaged over ten independent runs
+with one standard deviation, against the non-private baseline. Right: what it
+buys — the PD gap between canaries the model trained on and identical ones it
+never saw. The error bars on the right are the finding: under noise the effect
+stops being distinguishable from zero rather than cleanly disappearing.*
+
+![Leak detectability](08-differential-privacy-scoring/outputs/plots/detectabilidad_de_la_fuga.png)
+
+*The same data asked properly: not "how much leakage" but "can it be told apart
+from zero". Red bars are budgets where the canary effect survives its own
+run-to-run variance. The leak stops being detectable between ε = 2 and ε = 1.*
+
+**What came out.** Without DP the leak is unambiguous: canaries get a PD **2.50
+points higher** than identical unseen applicants, reproducing across all ten
+runs (**t = 44.8**). The budget that makes it undetectable is **ε = 1**, and it
+costs **18.4% of AUC** (0.6388 → 0.5215). At ε = 8 most accuracy survives
+(0.6118) but the leak is still plainly detectable. On 1,200 rows there is no
+comfortable middle — and that is the result.
+
+**The caveat.** The textbook membership-inference attack reported AUC between
+0.4959 and 0.5142 in **every** scenario, including the model with no privacy at
+all. A logistic regression with 8 parameters on 1,240 rows does not overfit
+enough for a loss-threshold attack to work, so the standard attack certifies as
+private a model that demonstrably memorised 40 records. Both attacks are in the
+repo because that gap is the point: a negative MIA is weak evidence, routinely
+presented as strong evidence.
+
+---
+
+# How the lab is built
 
 ## What is implemented from scratch, and how it is verified
 
@@ -145,8 +487,8 @@ quiet.
 
 ## Why the data is synthetic
 
-Because the claims in this lab are about *recovering* things, and a recovery
-can only be checked against a truth you control:
+Because the claims in this lab are about *recovering* things, and a recovery can
+only be checked against a truth you control:
 
 - **03** states that the Cox implementation returns the true coefficients — the
   simulator wrote them down first.
@@ -165,6 +507,11 @@ World Bank API for its LGD calibration and stress scenarios, because that half
 of the project is about econometrics on real series rather than recovery of
 known parameters.
 
+One thing deliberately *not* shown anywhere in this README: a chart comparing
+AUC across the eight techniques. They run on different generating processes with
+different base rates and horizons, so that ranking would look informative and
+mean nothing.
+
 ## Cross-cutting findings
 
 The results that took the most work to establish are mostly the uncomfortable
@@ -172,17 +519,14 @@ ones:
 
 - **A monitoring alarm is not a broken model.** In 06 the PSI hit 0.36 —
   fourteen times the alert threshold — while AUC *rose* and calibration stayed
-  within 0.12 pp. The population changed and the model was right about it.
-  Reading PSI as model failure would have triggered a redevelopment the
-  evidence does not support.
+  within 0.12 pp. Reading PSI as model failure would have triggered a
+  redevelopment the evidence does not support.
 - **Statistical significance is not predictive value.** In 03 a time-varying
-  effect is overwhelming in-sample (LR = 21.91, p = 2.9e-06) and moves
-  out-of-sample AUC by −0.0003. It earns its place by improving calibration,
-  not ranking — and the pipeline selects on that basis, in code.
+  effect is overwhelming in-sample (p = 2.9e-06) and moves out-of-sample AUC by
+  −0.0003. It earns its place by improving calibration, not ranking.
 - **Removing a proxy can increase disparity.** In 07 dropping the variable with
   11× more group signal than risk signal made the gap worse, because the group
-  information it carried was favourable. "Drop the correlated variables" moves
-  fairness in either direction.
+  information it carried was favourable.
 - **A negative attack result is weak evidence.** In 08 the standard
   membership-inference attack reported no leakage for a model that demonstrably
   memorised 40 records. Global overfitting and per-record memorisation are
