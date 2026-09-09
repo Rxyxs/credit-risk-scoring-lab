@@ -21,6 +21,9 @@ jobs:
           - 06-optimal-binning-scorecard
           - 07-fair-lending-bias-audit
           - 08-differential-privacy-scoring
+          - 09-reject-inference-selection-bias
+          - 10-through-the-cycle-pd-vasicek
+          - 11-federated-credit-scoring
     defaults:
       run:
         working-directory: ${{ matrix.folder }}
