@@ -2,14 +2,14 @@
 
 # Credit Risk Scoring Lab
 
-**Ocho enfoques autocontenidos para una misma pregunta — *.que tan probable es que este deudor caiga en default, y que se hace con eso?* — cada uno respondiendola con un metodo distinto, y cada uno reportando lo que su metodo cuesta ademas de lo que aporta.**
+**Once enfoques autocontenidos para una misma pregunta — *.que tan probable es que este deudor caiga en default, y que se hace con eso?* — cada uno respondiendola con un metodo distinto, y cada uno reportando lo que su metodo cuesta ademas de lo que aporta.**
 
 [![tests](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml/badge.svg)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
 [![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![R](https://img.shields.io/badge/R-4.4-276DC3?logo=r&logoColor=white)](https://www.r-project.org/)
 [![C](https://img.shields.io/badge/C-MSVC-A8B9CC?logo=c&logoColor=white)](https://es.wikipedia.org/wiki/C_(lenguaje_de_programaci%C3%B3n))
-[![Tecnicas](https://img.shields.io/badge/tecnicas-8-2C5F8A)](#las-ocho-tecnicas-en-detalle)
-[![Tests](https://img.shields.io/badge/tests-194%20en%20las%20tecnicas%2003--08-brightgreen?logo=pytest&logoColor=white)](#estandar-de-testing)
+[![Tecnicas](https://img.shields.io/badge/tecnicas-11-2C5F8A)](#las-once-tecnicas-en-detalle)
+[![Tests](https://img.shields.io/badge/tests-325%20en%20las%20tecnicas%2003--11-brightgreen?logo=pytest&logoColor=white)](#estandar-de-testing)
 [![License: MIT](https://img.shields.io/badge/licencia-MIT-lightgrey)](LICENSE)
 
 ---
@@ -48,15 +48,18 @@ flowchart LR
     subgraph D["Decision"]
         T05["05 · Restricciones monotonas<br/>+ aprobar / revisar / rechazar"]
         T04["04 · PD posterior<br/>+ cortes con incertidumbre"]
+        T09["09 · Reject inference<br/>+ correccion de sesgo de seleccion"]
     end
     subgraph P["Provision"]
         T03["03 · Estructura temporal de PD<br/>ECL 12m vs vida completa"]
         T02["02 · LGD empirica<br/>+ stress de riesgo de mercado"]
+        T10["10 · PD TTC vs PIT<br/>+ capital IRB"]
     end
     subgraph G["Gobierno"]
         T07["07 · Auditoria de trato justo"]
         T08["08 · Garantia de privacidad"]
         T06b["06 · Monitoreo PSI / CSI"]
+        T11["11 · Entrenamiento federado<br/>entre instituciones"]
     end
     O --> D --> P --> G
 ```
@@ -73,10 +76,13 @@ flowchart LR
 | [06](#06--scorecard-con-binning-optimo) | Binning optimo | **+13% de IV** sobre deciles, cero variables no monotonas, bandas separan **9,3x** | Un arbol greedy igual le gana por 0,7 pp de AUC out-of-time |
 | [07](#07--auditoria-de-trato-justo-en-credito) | Auditoria de equidad | El genero se reconstruye desde las features del modelo con **AUC 0,768** | Sacar el proxy empeoro la disparidad |
 | [08](#08--scoring-con-privacidad-diferencial) | Privacidad diferencial | Los canarios prueban memorizacion (**t = 44,8**); ε = 1 la vuelve indetectable | Ese presupuesto cuesta **18,4% del AUC** |
+| [09](#09--reject-inference-y-sesgo-de-seleccion) | Reject inference | El probit bivariado recupera ρ a **0,02** de la verdad con un instrumento de exclusion | Sin el, el mismo modelo falla por **0,36-0,44** -- a veces con el signo invertido |
+| [10](#10--pd-through-the-cycle-vs-point-in-time) | PD TTC vs PIT | El capital point-in-time oscila **173,5 puntos** de densidad de RWA en un ciclo | La linea through-the-cycle es plana por construccion -- una decision de modelamiento, no un hallazgo |
+| [11](#11--scoring-crediticio-federado) | Scoring federado | FedAvg iguala la calibracion del oraculo centralizado (**+0,18 pp** de sesgo contra **+4,45 pp** de solo-local) | Un solo banco por si solo pone mal el precio del riesgo nacional por **24,6 puntos** -- y su AUC igual se ve bien |
 
 ---
 
-# Las ocho tecnicas, en detalle
+# Las once tecnicas, en detalle
 
 ## 01 · Scorecard poliglota (R + Python + C)
 
@@ -452,6 +458,143 @@ rutinariamente como evidencia fuerte.
 
 ---
 
+---
+
+## 09 · Reject inference y sesgo de seleccion
+
+**Carpeta:** [`09-reject-inference-selection-bias`](09-reject-inference-selection-bias) · 64 tests
+
+**El problema.** Todo scorecard se entrena sobre una omision: el banco solo
+observa el pago de los solicitantes que una politica *anterior* aprobo. Los
+rechazados nunca recibieron el credito, asi que su desenlace no existe en
+ninguna base -- y nadie dentro del banco puede verificar cuanto se equivoca
+el modelo nuevo sobre la poblacion que efectivamente va a puntuar.
+
+**El metodo.** El simulador genera el desenlace de **todos**, aprobados y
+rechazados, antes de aplicar la politica historica -- convirtiendo "esta
+correccion funciona" de un articulo de fe en un numero. Dos regimenes
+importan: MAR (seleccion sobre observables, ρ = 0) y MNAR (el ejecutivo
+tambien usaba informacion blanda que nunca llego a ninguna base, ρ ≠ 0). Un
+probit bivariado con seleccion se construye desde cero, por maxima
+verosimilitud con **gradiente analitico** -- una version temprana con
+diferenciacion numerica convergia en silencio a un ρ confiadamente
+equivocado, con `success: True` y una norma de gradiente casi cero que era
+un optimo local genuino, no un bug.
+
+![Recuperacion de rho](09-reject-inference-selection-bias/outputs/plots/recuperacion_de_rho.png)
+
+*Gris es la verdad. Sin variable de exclusion (rojo) el modelo inventa sesgo
+de seleccion que no existe en MAR y no detecta un sesgo que es muy real en
+MNAR -- a veces con el signo invertido. Con un instrumento genuino (verde,
+una variable de presion comercial por sucursal-mes que mueve la aprobacion
+pero no el riesgo real) el mismo estimador queda a 0,02 de los dos valores
+verdaderos.*
+
+**Que salio.** En MNAR, el probit bivariado correctamente identificado queda
+a **0,0063** de los coeficientes verdaderos -- cerca del 0,0110 del oraculo
+imposible en la practica -- mientras que todo metodo corrido *sin* variable
+de exclusion, incluidos los modelos de seleccion "correctos", queda peor que
+simplemente ignorar a los rechazados (error de coeficientes 0,078 contra
+0,082 de solo-aprobados).
+
+**La advertencia.** Ignorar a los rechazados por completo no siempre es la
+peor opcion: en MAR, solo-aprobados recupera los coeficientes casi tan bien
+como el modelo completamente corregido, porque cuando la seleccion depende
+solo de observables la relacion dentro de la muestra aprobada ya es
+correcta. La falla es especifica de MNAR, y hay que distinguir los dos casos
+antes de salir a corregir.
+
+---
+
+## 10 · PD through-the-cycle vs point-in-time
+
+**Carpeta:** [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) · 41 tests
+
+**El problema.** El capital IRB de Basilea descansa en un modelo -- los
+deudores comparten exposicion a un ciclo economico comun, ademas de su
+propia suerte -- y traza una linea que los reguladores discuten
+constantemente: la PD que entra a la formula deberia ser un promedio
+**through-the-cycle** de largo plazo, no la PD **point-in-time** condicional
+al estado actual de la economia. Meter la equivocada hace que el capital se
+mueva con la economia en vez de amortiguarla -- exigiendo mas capital justo
+cuando las perdidas suben y el credito deberia seguir fluyendo.
+
+**El metodo.** El modelo de un factor de Vasicek (ASRF) construido desde
+cero: PD condicional, la distribucion cerrada de perdidas, la formula
+regulatoria de correlacion de Basilea, y el requerimiento de capital IRB
+completo. Dos estimadores independientes de correlacion -- metodo de
+momentos (exacto para cualquier tamano de cartera) y el limite ASRF (exacto
+solo cuando el tamano crece sin limite) -- construidos a proposito para que
+discrepen donde el supuesto de granularidad se rompe.
+
+![Capital PIT vs TTC](10-through-the-cycle-pd-vasicek/outputs/plots/capital_pit_vs_ttc.png)
+
+*Gris: densidad de RWA usando la PD through-the-cycle -- plana por
+construccion. Naranjo: la misma cartera, la misma formula de Basilea,
+recalibrada cada ano con la PD point-in-time. Oscila entre 70,5% y 243,9% de
+la exposicion, y los picos caen exactamente en las dos recesiones marcadas.*
+
+**Que salio.** El ciclo economico se reconstruye desde nada mas que conteos
+agregados de default -- nunca observado directamente -- con **0,985** de
+correlacion contra la verdad. En una cartera de 200 deudores, el estimador
+de limite ASRF confunde ruido muestral ordinario con riesgo sistematico
+(error absoluto medio 0,216); el estimador de momentos, exacto para
+cualquier N, se mantiene en 0,022 sobre los mismos datos.
+
+**La advertencia.** La propia formula de Basilea se verifico de forma
+estructural -- correlacion acotada, capital estrictamente creciente y lineal
+en la LGD -- no contra un numero publicado externo que este proyecto no
+tiene como consultar sin conexion, lo que habria sido exactamente el tipo de
+afirmacion no verificable que este repositorio trata de evitar.
+
+---
+
+## 11 · Scoring crediticio federado
+
+**Carpeta:** [`11-federated-credit-scoring`](11-federated-credit-scoring) · 26 tests
+
+**El problema.** El secreto bancario no es un tecnicismo que un modelo pueda
+rodear. Un banco de microcreditos no puede pasarle sus datos a un banco de
+la zona minera ni a un consorcio -- asi que cada institucion entrena con una
+porcion del mercado que nunca es representativa de a quien terminara
+puntuando su modelo.
+
+**El metodo.** FedAvg (McMahan et al., 2017) desde cero, anclado a dos
+identidades algebraicas exactas en vez de dejarlo meramente plausible: con
+un cliente, promediar no hace nada, asi que FedAvg tiene que coincidir bit a
+bit con descenso de gradiente comun; con un paso local por ronda, el
+promedio ponderado por tamano de los gradientes de los clientes es
+algebraicamente el gradiente sobre los datos agrupados, asi que FedAvg tiene
+que calzar exacto con entrenamiento centralizado sin importar cuan
+desiguales sean los tamanos. Seis bancos simulados, comparados bajo
+solo-local, federado, y un oraculo centralizado imposible en la practica.
+
+![Calibracion por banco](11-federated-credit-scoring/outputs/plots/calibracion_por_banco.png)
+
+*Izquierda: el modelo propio de cada banco, entrenado solo con sus clientes,
+aplicado a la poblacion nacional que nunca vio. El sesgo de calibracion de
+un banco se sale del grafico. Derecha: la misma comparacion promediada entre
+bancos, por politica.*
+
+**Que salio.** El AUC casi no se mueve entre solo-local y federado (0,7757
+contra 0,7797) -- los factores de riesgo dominantes apuntan igual en todas
+partes. **La calibracion es donde solo-local se rompe**: un banco, entrenado
+con una poblacion de microcredito de alto riesgo, predice una PD media
+nacional de 52,2% contra una tasa real de 27,6% -- una descalibracion de
+**24,6 puntos**, invisible en su AUC todavia razonable de 0,768. Federado
+calza casi exacto con la calibracion del oraculo (+0,18 pp contra +0,46 pp
+de sesgo).
+
+**La advertencia.** Aunque los datos crudos nunca salen de un banco, un
+coordinador curioso puede saber desde la primera actualizacion compartida,
+sola, cual participante sirve a una poblacion distinta -- el gradiente de
+ese banco tiene similitud coseno *negativa* con el de todos los demas, antes
+de que termine ningun entrenamiento. La federacion resuelve "no centralizar
+los datos"; no resuelve por si sola "no filtrar quien esta detras de la
+actualizacion".
+
+---
+
 # Como esta construido el laboratorio
 
 ## Que esta implementado desde cero, y como se verifica
@@ -475,6 +618,11 @@ verificacion independiente:
 | Cinco metricas de equidad + intervalos por bootstrap | [07](07-fair-lending-bias-audit/src/fairness_metrics.py) | Tasas de seleccion calculadas a mano sobre un ejemplo de ocho filas; intercambiar los grupos invierte todos los signos |
 | Contador RDP del gaussiano submuestreado | [08](08-differential-privacy-scoring/src/accountant.py) | Con q = 1 tiene que dar exactamente α/(2σ²), verificado sobre varios ordenes de Renyi y niveles de ruido |
 | DP-SGD (recorte por ejemplo, ruido gaussiano, muestreo de Poisson) | [08](08-differential-privacy-scoring/src/dp_sgd.py) | Calza con la regresion logistica de scikit-learn al desactivar ruido y recorte (AUC dentro de 0,01, coseno de coeficientes > 0,98) |
+| Probit bivariado con seleccion (gradiente conjunto analitico) | [09](09-reject-inference-selection-bias/src/selection_models.py) | Derivadas cerradas de la CDF normal bivariada verificadas contra diferencias finitas; recupera un rho conocido a menos de 0,02 con variable de exclusion |
+| CDF normal bivariada por cuadratura de Gauss-Legendre | [09](09-reject-inference-selection-bias/src/selection_models.py) | Verificada contra `scipy.stats.multivariate_normal` sobre siete correlaciones y cinco pares de coordenadas |
+| Distribucion cerrada de Vasicek + formula de capital IRB de Basilea | [10](10-through-the-cycle-pd-vasicek/src/vasicek.py) | CDF/cuantil verificados como inversas exactas; la densidad cerrada calza con una simulacion Monte Carlo independiente de 50.000 deudores |
+| Estimadores de correlacion de activos (momentos y limite ASRF) | [10](10-through-the-cycle-pd-vasicek/src/correlation_estimation.py) | Se exige que el estimador de limite ASRF sobreestime rho en una cartera chica mientras que el de momentos se mantiene preciso sobre los mismos datos |
+| FedAvg (SGD del lado del cliente, agregacion ponderada del servidor) | [11](11-federated-credit-scoring/src/federated.py) | Dos identidades algebraicas exactas con tolerancia `1e-9`: un cliente iguala a GD centralizado; un paso local por ronda iguala al GD centralizado sobre el pool |
 
 ## Estandares que cumple cada carpeta
 
@@ -497,7 +645,7 @@ verificacion independiente:
 
 ### Estandar de testing
 
-Las tecnicas 03-08 traen **194 tests**; la tecnica 01 reporta 29 en su propio
+Las tecnicas 03-11 traen **325 tests**; la tecnica 01 reporta 29 en su propio
 README. Apuntan a lo que falla *en silencio* y no con un error: una identidad
 analitica que la implementacion tiene que reproducir, un ejemplo calculado a
 mano, una propiedad que debe cumplirse (cobertura, monotonia, composicion), o un
@@ -512,6 +660,9 @@ importante, casos donde un diagnostico debe quedarse callado.
 | 06 | 34 | La programacion dinamica iguala a la busqueda exhaustiva sobre todas las particiones factibles |
 | 07 | 22 | La reponderacion iguala demostrablemente la tasa mala ponderada — y no hace nada si los grupos ya son independientes |
 | 08 | 43 | AUC del ataque > 0,70 contra un modelo con tantos parametros como filas, entrenado sobre etiquetas aleatorias |
+| 09 | 64 | El probit bivariado recupera rho a menos de 0,08 con instrumento de exclusion, y tiene que fallar por mas de 0,15 sin el |
+| 10 | 41 | El cuantil cerrado de Vasicek calza con una simulacion Monte Carlo independiente de 50.000 deudores a menos de 0,01 |
+| 11 | 26 | FedAvg con un cliente iguala al descenso de gradiente centralizado a `1e-9`; con E=1 y clientes de tamano desigual, a `1e-9` contra el gradiente del pool |
 
 ## Por que los datos son sinteticos
 
@@ -531,6 +682,16 @@ recuperacion solo se puede verificar contra una verdad que uno controla:
   que genera el default.
 - **08** demuestra memorizacion con canarios, que solo funcionan como
   instrumento si uno decide que entra al entrenamiento.
+- **09** recupera una correlacion rho conocida y coeficientes conocidos -- todo
+  el punto es haber plantado la verdad que los metodos de correccion deben
+  encontrar.
+- **10** fija la correlacion de activos verdadera de cada grado exactamente en
+  lo que la propia formula de Basilea le asignaria a su PD verdadera, asi que
+  recuperar rho es verificable contra el simulador y la regulacion a la vez.
+- **11** compara el entrenamiento federado contra un oraculo centralizado que
+  es ilegal de construir en la practica -- la comparacion solo existe porque
+  el simulador puede juntar datos que un consorcio real de bancos jamas
+  podria.
 
 La tecnica 02 es la excepcion: usa **datos macro reales de Chile** desde la API
 del Banco Mundial para su calibracion de LGD y sus escenarios de stress, porque
@@ -567,6 +728,17 @@ incomodos:
   gano, porque la DP solo podia cortar en bordes de la grilla. Refinar la grilla
   cierra casi toda la brecha e identifica el resto como el precio de la
   restriccion de monotonia.
+- **Una metrica de ranking puede esconder un desastre de calibracion.** En la
+  11, un banco entrenado solo con sus propios clientes de microcredito de
+  alto riesgo ordena a los solicitantes a nivel nacional casi tan bien como
+  cualquier otro (AUC 0,768) mientras pone mal el precio de la PD promedio
+  nacional por 24,6 puntos porcentuales. El AUC solo jamas lo habria
+  detectado.
+- **Una respuesta confiadamente equivocada igual puede reportar
+  `converged: True`.** En la 09, el probit bivariado sin variable de
+  exclusion encuentra un optimo local genuino con gradiente casi cero y
+  verosimilitud mayor que la de los parametros verdaderos -- convergencia
+  estadistica y correccion no son la misma afirmacion.
 
 ## Como correr una tecnica
 
@@ -584,7 +756,7 @@ pytest -q                                    # la suite de tests de esa carpeta
 ```
 
 Las tecnicas 01 y 02 ademas necesitan R (y, en el caso de la 01, un compilador
-de C); sus READMEs cubren ese setup. Las tecnicas 03-08 son Python puro y se
+de C); sus READMEs cubren ese setup. Las tecnicas 03-11 son Python puro y se
 instalan en un paso.
 
 ```

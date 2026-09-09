@@ -2,14 +2,14 @@
 
 # Credit Risk Scoring Lab
 
-**Eight self-contained approaches to one question — *how likely is this borrower to default, and what should be done about it?* — each answering it with a different method, and each reporting what its method costs as well as what it buys.**
+**Eleven self-contained approaches to one question — *how likely is this borrower to default, and what should be done about it?* — each answering it with a different method, and each reporting what its method costs as well as what it buys.**
 
 [![tests](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml/badge.svg)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
 [![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![R](https://img.shields.io/badge/R-4.4-276DC3?logo=r&logoColor=white)](https://www.r-project.org/)
 [![C](https://img.shields.io/badge/C-MSVC-A8B9CC?logo=c&logoColor=white)](https://en.wikipedia.org/wiki/C_(programming_language))
-[![Techniques](https://img.shields.io/badge/techniques-8-2C5F8A)](#the-eight-techniques-in-detail)
-[![Tests](https://img.shields.io/badge/tests-194%20in%20techniques%2003--08-brightgreen?logo=pytest&logoColor=white)](#testing-standard)
+[![Techniques](https://img.shields.io/badge/techniques-11-2C5F8A)](#the-eleven-techniques-in-detail)
+[![Tests](https://img.shields.io/badge/tests-325%20in%20techniques%2003--11-brightgreen?logo=pytest&logoColor=white)](#testing-standard)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
 ---
@@ -45,15 +45,18 @@ flowchart LR
     subgraph D["Decision"]
         T05["05 · Monotonic constraints<br/>+ approve / review / decline"]
         T04["04 · Posterior PD<br/>+ uncertainty-aware cutoffs"]
+        T09["09 · Reject inference<br/>+ selection-bias correction"]
     end
     subgraph P["Provisioning"]
         T03["03 · PD term structure<br/>12m vs lifetime ECL"]
         T02["02 · Empirical LGD<br/>+ market-risk stress"]
+        T10["10 · TTC vs PIT PD<br/>+ IRB capital"]
     end
     subgraph G["Governance"]
         T07["07 · Fair lending audit"]
         T08["08 · Privacy guarantee"]
         T06b["06 · PSI / CSI monitoring"]
+        T11["11 · Federated training<br/>across institutions"]
     end
     O --> D --> P --> G
 ```
@@ -70,10 +73,13 @@ flowchart LR
 | [06](#06--optimal-binning-scorecard) | Optimal binning | **+13% IV** over deciles, zero non-monotone variables, bands separate **9.3×** | A greedy tree still edges it by 0.7 pp of out-of-time AUC |
 | [07](#07--fair-lending-bias-audit) | Fair lending audit | Gender reconstructed from the model's own features at **AUC 0.768** | Dropping the proxy made the disparity **worse** |
 | [08](#08--differentially-private-scoring) | Differential privacy | Canaries prove memorisation (**t = 44.8**); ε = 1 makes it undetectable | That budget costs **18.4% of AUC** |
+| [09](#09--reject-inference--selection-bias) | Reject inference | Bivariate probit recovers ρ to **0.02** of the truth with an exclusion instrument | Without one, the same model is off by **0.36–0.44** — sometimes the wrong sign |
+| [10](#10--through-the-cycle-vs-point-in-time-pd) | TTC vs. PIT PD | Point-in-time capital swings **173.5 points** of RWA density across one cycle | The through-the-cycle line is flat by construction — a modelling choice, not a finding |
+| [11](#11--federated-credit-scoring) | Federated scoring | FedAvg matches the centralized oracle's calibration (**+0.18 pp** bias vs. **+4.45 pp** local-only) | One bank alone misprices national risk by **24.6 points** — and its AUC still looks fine |
 
 ---
 
-# The eight techniques, in detail
+# The eleven techniques, in detail
 
 ## 01 · Polyglot scorecard (R + Python + C)
 
@@ -427,6 +433,133 @@ presented as strong evidence.
 
 ---
 
+---
+
+## 09 · Reject inference & selection bias
+
+**Folder:** [`09-reject-inference-selection-bias`](09-reject-inference-selection-bias) · 64 tests
+
+**The problem.** Every scorecard is trained on a lie of omission: the bank
+only observes repayment for applicants a *previous* policy approved. The
+rejected ones never got the loan, so their outcome never exists in any
+database — and nobody inside the bank can check how wrong the new model is on
+the population it will actually score.
+
+**The method.** The simulator generates the outcome of **everyone**,
+approved and rejected, before applying the historical policy — turning "does
+this correction method work" from an article of faith into a number. Two
+regimes matter: MAR (selection on observables, ρ = 0) and MNAR (the loan
+officer also used soft information that never made it into any database,
+ρ ≠ 0). A bivariate probit with selection is built from scratch, by maximum
+likelihood with an **analytic gradient** — an early numerically-differentiated
+version silently converged to a confidently wrong ρ, with `success: True` and
+a near-zero gradient norm that was a genuine local optimum, not a bug.
+
+![Recovery of rho](09-reject-inference-selection-bias/outputs/plots/recuperacion_de_rho.png)
+
+*Grey is the truth. Without an exclusion restriction (red) the model invents
+selection bias that doesn't exist in MAR and misses bias that is very real in
+MNAR — sometimes the wrong sign entirely. With a genuine instrument (green,
+a branch-month commercial-pressure variable that moves approval but not true
+risk) the same estimator lands within 0.02 of both true values.*
+
+**What came out.** In MNAR, the correctly identified bivariate probit gets
+within **0.0063** of the true coefficients — close to the impossible-in-
+practice oracle's 0.0110 — while every method run *without* an exclusion
+restriction, including the "correct" selection models, lands worse than
+simply ignoring the rejects (coefficient error 0.078 vs. 0.082 for
+approved-only).
+
+**The caveat.** Ignoring the rejects entirely is not always the worst choice:
+in MAR, approved-only recovers coefficients almost as well as the fully
+corrected model, because when selection depends only on observables the
+relationship inside the approved sample is already correct. The failure is
+specific to MNAR, and the two need to be told apart before reaching for a fix.
+
+---
+
+## 10 · Through-the-cycle vs. point-in-time PD
+
+**Folder:** [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) · 41 tests
+
+**The problem.** Basel's IRB capital formula rests on one model — obligors
+share exposure to a common business cycle, plus their own luck — and draws a
+line regulators argue about constantly: the PD it uses should be a
+long-run **through-the-cycle** average, not the **point-in-time** PD
+conditional on today's economy. Plug in the wrong one and capital swings with
+the economy instead of dampening it — demanding more capital exactly when
+losses are rising and lending should keep flowing.
+
+**The method.** The Vasicek single-factor (ASRF) model built from scratch:
+conditional PD, the closed-form loss distribution, Basel's regulatory
+correlation formula, and the full IRB capital requirement. Two independent
+correlation estimators — method of moments (exact for any portfolio size) and
+the ASRF limit (exact only as size grows without bound) — deliberately built
+to disagree where the granularity assumption breaks.
+
+![PIT vs TTC capital](10-through-the-cycle-pd-vasicek/outputs/plots/capital_pit_vs_ttc.png)
+
+*Grey: RWA density using the through-the-cycle PD — flat by construction.
+Orange: the same portfolio, the same Basel formula, recalibrated every year
+with the point-in-time PD. It swings from 70.5% to 243.9% of exposure, and
+the peaks land exactly on the two marked recessions.*
+
+**What came out.** The business cycle is reconstructed from nothing but
+aggregate default counts — never observed directly — at **0.985** correlation
+with the truth. On a 200-obligor portfolio, the ASRF-limit correlation
+estimator mistakes ordinary sampling noise for systematic risk (mean absolute
+error 0.216); the method-of-moments estimator, exact for any N, holds at
+0.022 on the same data.
+
+**The caveat.** Basel's own formula was verified structurally — bounded
+correlation, strictly increasing and LGD-linear capital — not against an
+external published number this project has no offline way to check, which
+would have been exactly the kind of unverifiable claim this repository tries
+not to make.
+
+---
+
+## 11 · Federated credit scoring
+
+**Folder:** [`11-federated-credit-scoring`](11-federated-credit-scoring) · 26 tests
+
+**The problem.** Bank secrecy law is not a technicality a model can route
+around. A micro-loan bank cannot hand its data to a mining-region bank or a
+consortium — so each institution trains on a slice of the market that is
+never representative of who its model will eventually score.
+
+**The method.** FedAvg (McMahan et al., 2017) from scratch, pinned to two
+exact algebraic identities rather than left merely plausible: with one
+client, averaging does nothing, so FedAvg has to equal plain gradient
+descent bit-for-bit; with one local step per round, the size-weighted
+average of client gradients is algebraically the gradient on the pooled
+data, so FedAvg has to match centralized training exactly regardless of how
+unevenly sized the clients are. Six simulated banks, compared under
+local-only, federated, and an impossible-in-practice centralized oracle.
+
+![Calibration by bank](11-federated-credit-scoring/outputs/plots/calibracion_por_banco.png)
+
+*Left: each bank's own model, trained only on its own customers, applied to
+the national population it never saw. One bank's calibration bias is off the
+chart. Right: the same comparison averaged across banks, by policy.*
+
+**What came out.** AUC barely moves between local-only and federated
+(0.7757 vs. 0.7797) — the dominant risk drivers point the same way
+everywhere. **Calibration is where local-only breaks**: one bank, trained
+on a high-risk micro-loan population, predicts a 52.2% average national PD
+against a true 27.6% — a **24.6-point** miscalibration invisible to its
+still-reasonable 0.768 AUC. Federated matches the oracle's calibration
+almost exactly (+0.18 pp vs. +0.46 pp bias).
+
+**The caveat.** Even though raw data never leaves a bank, a curious
+coordinator can tell from the very first shared update alone which
+participant serves a different population — that bank's gradient has
+*negative* cosine similarity with everyone else's, before any model
+training has finished. Federation solves "don't centralize the data"; it
+does not by itself solve "don't leak who's behind the update."
+
+---
+
 # How the lab is built
 
 ## What is implemented from scratch, and how it is verified
@@ -449,6 +582,11 @@ Each component below is built directly and pinned to an independent check:
 | Five fairness metrics + bootstrap intervals | [07](07-fair-lending-bias-audit/src/fairness_metrics.py) | Selection rates computed by hand on an eight-row example; swapping the groups flips every sign |
 | RDP accountant for the subsampled Gaussian | [08](08-differential-privacy-scoring/src/accountant.py) | With q = 1 it must equal exactly α/(2σ²), checked across Rényi orders and noise levels |
 | DP-SGD (per-example clipping, Gaussian noise, Poisson sampling) | [08](08-differential-privacy-scoring/src/dp_sgd.py) | Matches scikit-learn's logistic regression with noise and clipping disabled (AUC within 0.01, coefficient cosine > 0.98) |
+| Bivariate probit with selection (analytic joint gradient) | [09](09-reject-inference-selection-bias/src/selection_models.py) | Closed-form partials of the bivariate normal CDF checked against finite differences; recovers a known ρ to within 0.02 given an exclusion restriction |
+| Bivariate normal CDF via Gauss-Legendre quadrature | [09](09-reject-inference-selection-bias/src/selection_models.py) | Checked against `scipy.stats.multivariate_normal` across seven correlations and five coordinate pairs |
+| Vasicek closed-form loss distribution + Basel IRB capital formula | [10](10-through-the-cycle-pd-vasicek/src/vasicek.py) | CDF/quantile verified as exact inverses; the closed-form density matches an independent 50,000-obligor Monte Carlo simulation |
+| Asset-correlation estimators (method of moments and ASRF limit) | [10](10-through-the-cycle-pd-vasicek/src/correlation_estimation.py) | The ASRF-limit estimator is required to overestimate ρ on a small portfolio while method of moments stays accurate on the same data |
+| FedAvg (client-side SGD, server-side weighted aggregation) | [11](11-federated-credit-scoring/src/federated.py) | Two exact algebraic identities to `1e-9` tolerance: one client equals centralized GD; one local step per round equals centralized GD on the pooled data |
 
 ## Standards every folder follows
 
@@ -470,7 +608,7 @@ Each component below is built directly and pinned to an independent check:
 
 ### Testing standard
 
-Techniques 03–08 ship **194 tests**; technique 01 reports 29 in its own README.
+Techniques 03–11 ship **325 tests**; technique 01 reports 29 in its own README.
 They target what fails *silently* rather than loudly: an analytic identity the
 implementation must reproduce, a hand-computed example, a property that must
 hold (coverage, monotonicity, composition), or a planted effect a diagnostic is
@@ -485,6 +623,9 @@ quiet.
 | 06 | 34 | The dynamic program equals exhaustive search over every feasible partition |
 | 07 | 22 | Reweighing provably equalises the weighted bad rate — and is a no-op when the groups are already independent |
 | 08 | 43 | Attack AUC > 0.70 against a model with as many parameters as rows, trained on random labels |
+| 09 | 64 | The bivariate probit recovers ρ within 0.08 with an exclusion instrument, and is required to miss by more than 0.15 without one |
+| 10 | 41 | The closed-form Vasicek quantile matches an independent 50,000-obligor Monte Carlo simulation to within 0.01 |
+| 11 | 26 | FedAvg with one client matches centralized gradient descent to `1e-9`; with E=1 and unevenly sized clients, to `1e-9` against the pooled-data gradient |
 
 ## Why the data is synthetic
 
@@ -502,6 +643,14 @@ only be checked against a truth you control:
   meaningful because gender was deliberately kept out of the default process.
 - **08** proves memorisation with canaries, which only work as an instrument if
   you decide what enters training.
+- **09** recovers a known correlation ρ and known coefficients — the whole point
+  is having planted the truth the correction methods are supposed to find.
+- **10** sets each grade's true asset correlation to exactly what Basel's own
+  formula assigns at its true PD, so recovering ρ is checkable against the
+  simulator and the regulation at once.
+- **11** compares federated training against a centralized oracle that is
+  illegal to build in practice — the comparison only exists because the
+  simulator can pool data a real consortium of banks never could.
 
 Technique 02 is the exception: it pulls **real Chilean macro data** from the
 World Bank API for its LGD calibration and stress scenarios, because that half
@@ -536,6 +685,14 @@ ones:
   dynamic program is provably optimal and a greedy tree still beat it, because
   the DP could only cut on grid boundaries. Refining the grid closes most of the
   gap and identifies the rest as the price of the monotonicity constraint.
+- **A ranking metric can hide a calibration disaster.** In 11, a bank trained
+  only on its own high-risk micro-loan customers ranks applicants nationally
+  about as well as everyone else (AUC 0.768) while mispricing the national
+  average PD by 24.6 percentage points. AUC alone would never have caught it.
+- **A confidently wrong answer can still report `converged: True`.** In 09,
+  the bivariate probit without an exclusion restriction finds a genuine local
+  optimum with a near-zero gradient and higher likelihood than the true
+  parameters — statistical convergence and correctness are not the same claim.
 
 ## Running a technique
 
