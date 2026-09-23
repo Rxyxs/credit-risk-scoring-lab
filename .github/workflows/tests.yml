@@ -77,7 +77,7 @@ jobs:
         run: |
           install.packages(
             c("testthat", "dplyr", "jsonlite", "AER", "mgcv"),
-            repos = "https://cloud.r-project.org"
+            repos = Sys.getenv("RSPM")
           )
         shell: Rscript {0}
 
