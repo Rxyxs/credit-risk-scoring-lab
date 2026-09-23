@@ -24,6 +24,16 @@ SCORE_REF <- 600
 ODDS_REF <- 50    # 50 buenos : 1 malo, en el score de referencia
 PDO <- 20         # puntos para duplicar el odds
 
+#' Escala PDO: deriva Factor, Offset y Base Points a partir del intercepto
+#' del modelo logistico y los parametros de referencia (Siddiqi, "Credit
+#' Risk Scorecards"). Pura y sin I/O para poder testearla de forma aislada.
+pdo_scaling <- function(intercept, pdo = PDO, score_ref = SCORE_REF, odds_ref = ODDS_REF) {
+  factor_ <- pdo / log(2)
+  offset_ <- score_ref - factor_ * log(odds_ref)
+  base_points <- offset_ - factor_ * intercept
+  list(factor = factor_, offset = offset_, base_points = base_points)
+}
+
 main <- function() {
   binned <- read.csv("data/processed/applicants_woe_binned.csv", stringsAsFactors = FALSE)
   iv_summary <- read.csv("outputs/reports/iv_summary.csv", stringsAsFactors = FALSE)
@@ -58,9 +68,10 @@ main <- function() {
     ))
   }
 
-  factor_ <- PDO / log(2)
-  offset_ <- SCORE_REF - factor_ * log(ODDS_REF)
-  base_points <- offset_ - factor_ * coefs["(Intercept)"]
+  scaling <- pdo_scaling(coefs["(Intercept)"])
+  factor_ <- scaling$factor
+  offset_ <- scaling$offset
+  base_points <- scaling$base_points
 
   woe_bins <- read.csv("outputs/reports/woe_bins.csv", stringsAsFactors = FALSE)
   points_rows <- list()

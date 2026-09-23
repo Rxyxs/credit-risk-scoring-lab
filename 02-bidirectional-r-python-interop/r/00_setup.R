@@ -11,6 +11,7 @@ required_packages <- c(
   "dplyr", "readr", "ggplot2", "scales",   # manipulacion y graficos
   "quantmod", "TTR", "xts",                # velas japonesas e indicadores tecnicos
   "rugarch",                               # GARCH de volatilidad
+  "AER",                                   # tobit() para calibracion de LGD
   "reticulate"                             # puente hacia Python
 )
 
