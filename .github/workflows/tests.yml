@@ -51,3 +51,47 @@ jobs:
 
       - name: Run test suite
         run: pytest tests/ -q
+
+  r-tests:
+    name: testthat (${{ matrix.folder }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        folder:
+          - 01-polyglot-scorecard-r-python-c
+          - 02-bidirectional-r-python-interop
+    defaults:
+      run:
+        working-directory: ${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.3.0"
+          use-public-rspm: true
+
+      - name: Install R package dependencies
+        run: |
+          install.packages(
+            c("testthat", "dplyr", "jsonlite", "AER", "mgcv"),
+            repos = "https://cloud.r-project.org"
+          )
+        shell: Rscript {0}
+
+      - name: Run testthat suite
+        run: Rscript tests/testthat.R
+
+  c-tests:
+    name: score_engine.c (gcc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure build-essential (gcc, make) is available
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Run C test suite
+        run: make -C 01-polyglot-scorecard-r-python-c/c test
