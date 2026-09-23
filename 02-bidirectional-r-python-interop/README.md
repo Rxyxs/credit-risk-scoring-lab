@@ -205,7 +205,15 @@ Rscript r/run_combined_analysis.R                   # needs the Python credit-sc
 .venv\Scripts\python.exe -m pytest tests/ -v
 ```
 
-Unit tests cover the MLP's custom focal-BCE loss, the three-activation architecture, training determinism given a fixed seed, and the DuckDB metrics-persistence roundtrip.
+Unit tests cover the MLP's custom focal-BCE loss, the three-activation architecture, training determinism given a fixed seed, and the DuckDB metrics-persistence roundtrip. These run locally, not from CI.
+
+R has its own suite, which *does* run in CI on every push (see [Continuous integration](../README.md#continuous-integration) in the main README):
+
+```powershell
+Rscript tests/testthat.R
+```
+
+16 `testthat` assertions on `simulate_defaulted_loan_panel` and `fit_lgd_gam`: LGD stays bounded in [0, 1], a boom/bust macro cycle produces genuine zero- and total-recovery observations (not hand-picked edge cases), and the Beta/Logit GAM fits those boundary values with a documented warning rather than an error, with predictions strictly inside (0, 1).
 
 ## Data cleaning -- what actually got fixed
 

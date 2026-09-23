@@ -207,7 +207,15 @@ Rscript r/run_combined_analysis.R                   # necesita que el lado Pytho
 .venv\Scripts\python.exe -m pytest tests/ -v
 ```
 
-Los tests unitarios cubren la loss custom focal-BCE del MLP, la arquitectura con las tres activaciones, el determinismo del entrenamiento con semilla fija, y el roundtrip de persistencia de métricas en DuckDB.
+Los tests unitarios cubren la loss custom focal-BCE del MLP, la arquitectura con las tres activaciones, el determinismo del entrenamiento con semilla fija, y el roundtrip de persistencia de métricas en DuckDB. Corren localmente, no desde CI.
+
+R tiene su propia suite, que *sí* corre en CI en cada push (ver [Integración continua](../README.es.md#integracion-continua) en el README principal):
+
+```powershell
+Rscript tests/testthat.R
+```
+
+16 aserciones de `testthat` sobre `simulate_defaulted_loan_panel` y `fit_lgd_gam`: la LGD queda acotada en [0, 1], un ciclo macro de boom/recesión produce observaciones reales de recuperación cero y total (no casos armados a mano), y el GAM Beta/Logit ajusta esos valores límite con una advertencia documentada en vez de un error, con predicciones estrictamente dentro de (0, 1).
 
 ## Limpieza de datos -- qué se arregló realmente
 

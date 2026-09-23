@@ -108,6 +108,11 @@ rows/second against 24.3M for vectorised NumPy and 0.97M for a pure-Python
 loop — and produces the same number as R's scorecard to within 4.79e-11, which
 is the part that makes the speed usable rather than merely impressive.*
 
+The engine also builds and runs on Linux/GCC — CI compiles it with `make` and
+runs a 1020-assertion correctness suite (`c/tests/test_score_engine.c`) on
+every push, separately from the MSVC build measured above (see
+[Continuous integration](#continuous-integration)).
+
 **What came out.** The scorecard reached Gini 0.466 and KS 0.358; the best ML
 challenger reached Gini 0.461. **The interpretable model won**, and the project
 says so instead of reframing the comparison. The reject-inference section finds
@@ -608,7 +613,8 @@ Each component below is built directly and pinned to an independent check:
 
 ### Testing standard
 
-Techniques 03–11 ship **325 tests**; technique 01 reports 29 in its own README.
+Techniques 03–11 ship **325 tests**; technique 01 reports 23 passing (plus 10
+skipped without a locally compiled C engine) in its own README.
 They target what fails *silently* rather than loudly: an analytic identity the
 implementation must reproduce, a hand-computed example, a property that must
 hold (coverage, monotonicity, composition), or a planted effect a diagnostic is
@@ -626,6 +632,42 @@ quiet.
 | 09 | 64 | The bivariate probit recovers ρ within 0.08 with an exclusion instrument, and is required to miss by more than 0.15 without one |
 | 10 | 41 | The closed-form Vasicek quantile matches an independent 50,000-obligor Monte Carlo simulation to within 0.01 |
 | 11 | 26 | FedAvg with one client matches centralized gradient descent to `1e-9`; with E=1 and unevenly sized clients, to `1e-9` against the pooled-data gradient |
+
+### Continuous integration
+
+Every push and pull request to `main` runs **13 independent jobs on
+`ubuntu-latest`**, one workflow, three languages — [`.github/workflows/tests.yml`](.github/workflows/tests.yml):
+
+| Language | Jobs | What each job runs | Latest green run |
+|---|---|---|---|
+| Python | 10 (one per technique: 01, 03–11) | `pytest tests/ -q` | **348 passed**, 10 skipped¹ |
+| R (`testthat`) | 2 (techniques 01 and 02) | WOE/IV binning, PDO scorecard scaling (01); empirical LGD panel simulation and Beta/Logit calibration (02) | **50 assertions passed** |
+| C (`gcc`, `make test`) | 1 (technique 01's `score_engine.c`) | Exact numeric correctness, NULL/out-of-range safety, batch-vs-single-row consistency | **1020 assertions passed**² |
+
+¹ The 10 skips are technique 01's ctypes-bridge tests, which need the C
+engine compiled locally first (`build.ps1` on Windows, `make lib` on
+Linux) — CI doesn't check in a binary, so it skips them by design rather
+than faking a pass.
+² Includes a 1000-iteration loop checking that repeated calls return a
+bit-identical result (i.e. no hidden mutable state) — that is one property
+checked 1000 times, not 1000 independent test cases; the other 20
+assertions are the actual scenario coverage (NULL pointers, out-of-range
+bins, empty feature arrays, batch/single-row cross-checks).
+
+These three counts are different units — pytest test functions, `testthat`
+expectations, and raw C `assert`-style checks — and are kept separate on
+purpose rather than added into one combined "number of tests," which would
+mix things that aren't comparable.
+
+Technique 02 has its own Python tests (`tests/test_credit_scoring_mlp.py`,
+`tests/test_metrics_store.py`) but isn't part of the Python matrix above —
+they're run locally, not from CI, unlike its R suite.
+
+The standalone C benchmark (`c/bench_main.c`, no ctypes overhead) measured
+**142.8M rows/sec** compiled with GCC 10.3.0 on the same source that CI now
+tests — inside the 133–154M rows/sec range already documented for the MSVC
+build in technique 01's README, i.e. the NULL/bounds-safety checks added
+for the C test suite did not measurably change the hot path.
 
 ## Why the data is synthetic
 

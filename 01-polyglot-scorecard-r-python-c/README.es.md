@@ -10,7 +10,9 @@
 ![SHAP](https://img.shields.io/badge/SHAP-explainability-8A2BE2?style=flat)
 ![dplyr](https://img.shields.io/badge/dplyr-tidyverse-1A162D?style=flat)
 ![FastAPI](https://img.shields.io/badge/FastAPI-serving-009688?style=flat&logo=fastapi&logoColor=white)
-![Pytest](https://img.shields.io/badge/tests-29%20passing-brightgreen?style=flat&logo=pytest&logoColor=white)
+![Pytest](https://img.shields.io/badge/python-23%20passing%2C%2010%20skipped-brightgreen?style=flat&logo=pytest&logoColor=white)
+![testthat](https://img.shields.io/badge/R-34%20aserciones-276DC3?style=flat&logo=r&logoColor=white)
+![C tests](https://img.shields.io/badge/C-1020%20aserciones%20(gcc)-A8B9CC?style=flat&logo=c&logoColor=white)
 ![Status](https://img.shields.io/badge/status-research%20%2F%20synthetic%20data-lightgrey?style=flat)
 
 Un motor **poligloto de credit scoring** para banca de consumo/retail
@@ -166,7 +168,7 @@ que "correr todo" y "correr un paso" siempre se comportan igual.
 | Deep learning | **PyTorch** | MLP con Focal Loss a medida, comparacion de activaciones ReLU/GELU/Swish, mismo holdout que scorecard y challengers ML |
 | Persistencia de metricas | **DuckDB** | Historial de metricas y predicciones de los 3 enfoques por corrida del pipeline (`data/processed/metrics.duckdb`) |
 | Visualizacion | **Matplotlib** | 10 graficos de resultados, paleta categorica/divergente validada para accesibilidad |
-| Testing | **Pytest** | 33 tests que cubren generacion de datos, limpieza, el puente al motor en C, el servicio FastAPI, reject inference, entrenamiento ML/DL, y persistencia en DuckDB |
+| Testing | **Pytest** (Python), **testthat** (R), GCC/Clang + runner propio (C) | Python: 23 aprobados / 10 saltados, cubren generacion de datos, limpieza, el puente al motor en C, el servicio FastAPI, reject inference, entrenamiento ML/DL, y persistencia en DuckDB. R: 34 aserciones sobre binning WOE/IV y escalamiento PDO. C: 1020 aserciones sobre `score_engine.c` — correctitud, seguridad NULL/rango, consistencia entre lote y fila |
 
 ## Estructura
 
@@ -180,9 +182,11 @@ chile-credit-risk-scoring-engine/
 │   ├── 02_scorecard_model.R
 │   └── 03_validation.R
 ├── c/
-│   ├── score_engine.h / score_engine.c   # motor de scoring (compartido DLL + exe)
+│   ├── score_engine.h / score_engine.c   # motor de scoring (compartido DLL/so + exe)
 │   ├── bench_main.c                       # benchmark standalone en C puro
-│   └── build.ps1                          # compila con MSVC (cl.exe)
+│   ├── build.ps1                          # compila con MSVC (cl.exe), Windows
+│   ├── Makefile                           # compila con GCC/Clang, Linux/macOS (lo usa CI)
+│   └── tests/test_score_engine.c          # 1020 aserciones, runner liviano en C puro
 ├── src/
 │   ├── data_generator.py
 │   ├── cleaning.py
@@ -206,17 +210,20 @@ chile-credit-risk-scoring-engine/
 │   ├── plots/                        # graficos de resultados (png, versionado)
 │   └── interactive/                  # grafico Plotly HTML standalone (versionado)
 ├── data/processed/metrics.duckdb     # historial de metricas/predicciones por corrida (generado)
-├── tests/                            # 33 tests, pytest
+├── tests/                            # 23 aprobados / 10 saltados, pytest
+│   ├── testthat.R                    # runner de la suite R (testthat)
+│   └── testthat/test-scorecard.R     # 34 aserciones: WOE/IV, escalamiento PDO
 ├── run_pipeline.py                   # orquestador end-to-end (Python -> R -> C -> Python)
 └── requirements.txt
 ```
 
 ## Instalacion y ejecucion
 
-Requiere **Python 3.10+**, **R 4.4+**, y un **compilador MSVC** (Visual
-Studio / Build Tools con el workload "Desktop development with C++" --
-`c/build.ps1` ubica `vcvars64.bat` automaticamente en las rutas de
-instalacion comunes).
+Requiere **Python 3.10+**, **R 4.4+**, y un compilador C -- **MSVC** en
+Windows (Visual Studio / Build Tools con el workload "Desktop development
+with C++" -- `c/build.ps1` ubica `vcvars64.bat` automaticamente en las
+rutas de instalacion comunes) o **GCC/Clang** en Linux/macOS
+(`c/Makefile`, `-fPIC -shared -O3`; es lo que usa CI).
 
 ```powershell
 git clone https://github.com/Rxyxs/chile-credit-risk-scoring-engine.git
@@ -226,10 +233,11 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Paquetes de R usados (`dplyr`, `jsonlite`) -- instalar una vez si faltan:
+Paquetes de R usados (`dplyr`, `jsonlite`, mas `testthat` para la suite de
+tests) -- instalar una vez si faltan:
 
 ```r
-install.packages(c("dplyr", "jsonlite"))
+install.packages(c("dplyr", "jsonlite", "testthat"))
 ```
 
 ### Pipeline completo (un solo comando)
@@ -263,8 +271,18 @@ python -m src.metrics_store
 
 ### Tests
 
+Tres suites independientes, una por lenguaje, todas corren en CI en cada
+push (ver [Integracion continua](../README.es.md#integracion-continua) en
+el README principal):
+
 ```powershell
-pytest
+pytest                              # Python: 23 aprobados, 10 saltados sin motor en C compilado
+Rscript tests/testthat.R            # R: 34 aserciones testthat (binning WOE/IV, escalamiento PDO)
+```
+
+```bash
+# C, Linux/macOS/WSL (gcc o clang) -- en Windows con MSVC usar build.ps1 para el DLL en si
+make -C c test                      # 1020 aserciones: correctitud, seguridad NULL/rango, consistencia de lote
 ```
 
 ### Levantar la API (Champion + Challenger)
@@ -431,14 +449,41 @@ cruzado util, no solo una coincidencia de como se genero el dato.
 | **Speedup, C vs. Python puro** | **278.1x** |
 | **Speedup, C vs. NumPy** | **11.1x** |
 | Benchmark standalone en C (sin overhead de ctypes/Python, 2M filas, 3 corridas) | 133-154 millones de filas/seg |
+| Benchmark standalone en C, build Linux/GCC 10.3.0 (mismo codigo, 2M filas) | **142.8 millones de filas/seg** |
 
 Los numeros de throughput son de reloj de pared y varian algo de
 corrida en corrida segun la carga de la maquina (esta es la ultima
 corrida medida); el chequeo de correctitud (coincidencia bit a bit
 contra R) no varia y es el numero que realmente importa para poner el
-motor en produccion.
+motor en produccion. La cifra de GCC cae dentro del rango de MSVC de
+arriba, que es justo el punto de medirla aparte: los chequeos de
+seguridad NULL/fuera-de-rango que exige la suite en C no le cuestan nada
+medible al hot path.
 
 ![Benchmark del motor en C](outputs/plots/c_engine_benchmark.png)
+
+**El binding de `ctypes`, en detalle.** `src/ctypes_bridge.py` carga
+`outputs/models/score_engine.dll` (`.so` en Linux) con `ctypes.CDLL` y
+declara explicitamente los `argtypes`/`restype` de `score_batch` en vez de
+confiar en el `int` que ctypes asume por defecto para cada argumento -- un
+tipo implicito equivocado aca corromperia scores en silencio en vez de
+lanzar un error. Los datos cruzan la frontera Python↔C como dos arreglos
+NumPy planos y C-contiguos: `bin_indices` como **`int32` fila-mayor**
+(forma `n_filas × n_features`, aplanado para que C lo indexe como
+`bin_indices[fila * n_features + feature]`) y `points_table` como
+**`float64`** (forma `n_features × max_bins`, aplanado de la misma forma).
+`np.ascontiguousarray(..., dtype=...)` corre antes de cada llamada para
+que un arreglo no contiguo o de tipo equivocado (un slice, una traspuesta)
+se copie al layout exacto que espera la firma en C, en vez de pasarle a C
+un puntero a memoria organizada distinto de lo que asume. `out_scores` se
+reserva en Python (`np.empty`) y se pasa por puntero -- C nunca reserva ni
+libera memoria propia, solo escribe en un buffer que el caller ya posee,
+que es tambien por que `score_batch` devuelve `void` en vez de un puntero.
+Desde la suite de tests en Linux/GCC (1020 aserciones, ver
+[Integracion continua](../README.es.md#integracion-continua)), un puntero
+NULL o un bin fuera de rango devuelve `NaN` por fila en vez de leer fuera
+de `points_table` -- la frontera se defiende del lado de C, no solo se
+confia en que Python siempre mande datos bien formados.
 
 ### 7. Serving en produccion — FastAPI + motor en C, Champion vs. Challenger
 
