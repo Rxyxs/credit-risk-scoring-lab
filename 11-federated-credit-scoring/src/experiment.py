@@ -30,14 +30,13 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
-from src.data_generator import BANCOS, FEATURES
+from src.data_generator import BANCOS, FEATURES, generar_carteras
 from src.federated import (
     FedAvgLogisticRegression, _con_intercepto, gradient_descent_centralizado,
     local_update, sigmoide,
 )
 
 BASE = Path(__file__).resolve().parents[1]
-RAW_DIR = BASE / "data" / "raw"
 REPORTS_DIR = BASE / "outputs" / "reports"
 
 LR = 0.6
@@ -106,7 +105,16 @@ def evaluar_en(coef: np.ndarray, df: pd.DataFrame) -> dict:
 
 def correr_escenario(escenario: str, local_epochs: int = 5,
                      n_rondas: int = N_RONDAS_DEFAULT) -> dict:
-    df = pd.read_csv(RAW_DIR / f"carteras_{escenario}.csv")
+    # Generado en memoria, no leido de `data/raw/carteras_{escenario}.csv`:
+    # ese CSV es un artefacto opcional que escribe `data_generator.main()`
+    # (util para inspeccionar los datos a mano), no un prerequisito -- antes,
+    # esta funcion asumia que ya existia en disco, lo que rompia en cualquier
+    # checkout limpio (CI, o un clon nuevo) con FileNotFoundError, porque
+    # nada generaba ese archivo antes de correr los tests. `generar_carteras`
+    # es determinista dado el seed (por defecto RANDOM_STATE_DEFAULT=42, el
+    # mismo que usaba `data_generator.main()` al escribir el CSV), asi que el
+    # resultado es identico al que se leia del archivo.
+    df = generar_carteras(escenario)
     trains, tests, pool_train, pool_test = _splits(df)
 
     Xs_train = [_Xy(trains[b])[0] for b in BANCOS]
@@ -176,7 +184,7 @@ def correr_escenario(escenario: str, local_epochs: int = 5,
 def barrido_epocas_locales(escenario: str = "no_iid") -> pd.DataFrame:
     """Comunicacion vs client drift: mas epocas locales por ronda ahorra
     rondas, pero en datos no-IID aleja al modelo federado del oraculo."""
-    df = pd.read_csv(RAW_DIR / f"carteras_{escenario}.csv")
+    df = generar_carteras(escenario)  # mismo motivo que en correr_escenario(): en memoria, no en disco
     trains, tests, pool_train, pool_test = _splits(df)
     Xs_train = [_Xy(trains[b])[0] for b in BANCOS]
     ys_train = [_Xy(trains[b])[1] for b in BANCOS]
