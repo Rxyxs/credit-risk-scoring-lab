@@ -836,6 +836,23 @@ credit-risk-scoring-lab/
 | Interoperabilidad | `reticulate` (R → Python), `rpy2` (Python → R), `ctypes` (Python → C) |
 | Graficos | Matplotlib (estaticos, versionados), Plotly (interactivos, regenerados localmente) |
 
+## Checklist de produccion
+
+Nota de cierre para la segunda semana de trabajo en este laboratorio: lo
+que esta realmente verificado a este commit, no lo que se aspira a tener.
+Cada fila enlaza a donde se chequea, siguiendo la misma regla que el resto
+de este README -- un check aca significa que hay un comando o un job de
+CI que lo demuestra, no una afirmacion que descansa solo en esta tabla.
+
+| | Item | Evidencia |
+|---|---|---|
+| ✅ | CI poliglota automatizado (13/13 jobs en GitHub Actions: Python + R + C) | [Integracion continua](#integracion-continua); ultima corrida verde enlazada desde el badge arriba de esta pagina |
+| ✅ | Cobertura de tests (348 pytest, 50 testthat, 1020 aserciones C) | Misma seccion -- tres unidades distintas, mantenidas separadas en vez de sumarse en un numero unico enganoso |
+| ✅ | Motor en C desacoplado (~142,8M filas/seg, chequeos defensivos NaN/rango) | [Seccion 6 de la tecnica 01](01-polyglot-scorecard-r-python-c/README.es.md#6-motor-en-c--correctitud-y-desempeno); `c/tests/test_score_engine.c` ejercita directamente los caminos NULL/fuera-de-rango |
+| ✅ | Scorecard WOE + regresion Beta / LGD en R (`mgcv`/`AER` validados) | [Tecnica 01](#01--scorecard-poliglota-r--python--c) (WOE/PDO) y [tecnica 02](#02--interoperabilidad-bidireccional-rpython) (LGD Tobit/GAM); ambos paquetes instalados y ejercitados por el job de CI de `testthat`, no solo importados |
+| ✅ | 11 tecnicas de riesgo operacionales, chequeadas por fuga de datos temporal | Se reviso la metodologia de split de cada tecnica esta semana (ver la nota de validacion en cada README): 9 son simulaciones transversales sin dimension calendario, donde un split aleatorio estratificado es la eleccion *correcta*, no un atajo; la tecnica 06 corre un split out-of-time genuino por vintage; la tecnica 03 queda marcada como el vacio honesto -- tiene cohortes vintage que no usa para OOT, a diferencia de la 06 |
+| ✅ | Documentacion bilingue (EN/ES) con diagramas de arquitectura e interoperabilidad | Cada tecnica trae su par `README.md`/`README.es.md`; diagramas Mermaid en este README y en los README propios de las tecnicas 01/02; la nota de layout de memoria de `ctypes` en la tecnica 01 y los puentes `reticulate`/`rpy2` en la tecnica 02 |
+
 ## Autor
 
 Pablo Reyes — [github.com/Rxyxs](https://github.com/Rxyxs)

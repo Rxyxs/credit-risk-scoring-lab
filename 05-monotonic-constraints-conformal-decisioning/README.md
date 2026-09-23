@@ -172,6 +172,11 @@ measurable.
   because the score band buys its lower bad rate by declining a large number
   of good customers. Both numbers are in the table; picking only the bad rate
   would flip the conclusion.
+- **The train/calibration/test split is stratified random, not
+  chronological** — applicants here have no origination date. The
+  covariate-shift stress test above is the closest thing to an out-of-time
+  check this project runs, and it's framed as exactly what it is: a
+  deliberately shifted population, not a genuinely held-out future period.
 
 ## Architecture
 

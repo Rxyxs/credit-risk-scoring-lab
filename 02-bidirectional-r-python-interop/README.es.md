@@ -264,6 +264,8 @@ Dataset final: 8.000 filas limpias (de 8.160 crudas), tasa de default 11,58%.
 
 ## Resultados de credit scoring
 
+Los solicitantes se generan i.i.d. sin fecha de originación, así que el train/test es un split aleatorio estratificado y no uno cronológico -- no hay dimensión calendario aquí que un split out-of-time deba proteger.
+
 | Modelo | AUC-ROC | KS | Gini |
 |---|---|---|---|
 | **Regresión Logística** | **0,750** | **0,424** | **0,501** |
@@ -351,6 +353,8 @@ LGD es una fraccion en [0,1] con masa puntual real en ambos extremos (recuperaci
 **Chequeo de signo economico, ambos modelos coinciden**: el crecimiento del PIB *reduce* la LGD (β = -0,0211, Tobit, p < 2e-16), el desempleo la *aumenta* (β = +0,0126, p < 2e-16) -- ambos estadisticamente significativos y ambos consistentes con que las recuperaciones realmente se deterioran en peores condiciones macro, no un artefacto del modelo. El pipeline verifica estos signos antes de guardar el modelo (`stopifnot(pib_coef < 0, desempleo_coef > 0)`) -- una calibracion con el signo equivocado seria economicamente inutilizable para stress testing y no deberia pasar en silencio aguas abajo.
 
 **Un hallazgo real y honesto al comparar ambos modelos, no suavizado**: en un escenario de recesion severa (PIB -6%, desempleo 8%, garantia tipica), el Tobit lineal predice LGD = 73,5%, mientras que el GAM predice **82,1%** -- una brecha completa de 8,6 puntos. El termino suave del GAM sobre el crecimiento del PIB (`edf = 3,38`, genuinamente no lineal, lejos de una linea recta) captura un patron real que el indice lineal del Tobit no puede: el deterioro de LGD se acelera desproporcionadamente en recesiones severas en vez de escalar linealmente con el shock del PIB. Es exactamente el tipo de subestimacion de riesgo de cola que un modelo lineal puede esconderle a un comite de riesgo, y es la razon por la que el GAM (no el Tobit) es el modelo realmente usado en el stress test de abajo.
+
+**Sobre la validación.** Ambos modelos se ajustan sobre el panel completo 1991-2024, no con un split train/test por año -- esto es calibración econométrica contra historia macro real, no un clasificador evaluado sobre individuos no vistos, así que el chequeo correcto es la verificación de signo económico de arriba, no un AUC out-of-time. Vale la pena ser explícito sobre el límite que eso trae: los escenarios de stress de abajo son *inputs* macro pasados por el modelo ya ajustado, no un ciclo económico futuro genuinamente separado que el modelo nunca vio al ajustarse.
 
 ## Stress test IFRS9 / Basilea III (rpy2, LGD empírica)
 

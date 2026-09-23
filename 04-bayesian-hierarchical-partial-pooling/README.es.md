@@ -193,6 +193,11 @@ probarlo, no suponerlo.
   una constante que no cambia ninguna prediccion. Antes de centrar, el RMSE
   sin pooling marcaba 0,5818; despues, 0,3873. El primer numero habria hecho
   ver al pooling parcial mejor de lo que es.
+- **El split train/test es aleatorio estratificado, y es la eleccion
+  correcta aca.** Los segmentos son sucursales y tipos de solicitante, no
+  cohortes de originacion -- el simulador no tiene dimension calendario,
+  asi que no hay ninguna pregunta out-of-time que un split cronologico
+  este dejando sin responder.
 
 ## Arquitectura
 

@@ -169,6 +169,10 @@ resultados no viola por si sola.
   aca, y eso tambien vale la pena decirlo: el costo de estas mitigaciones cayo
   sobre la *utilidad* (hasta −6,1%) y sobre como se reparte el volumen
   aprobado, no sobre la capacidad del modelo de ordenar riesgo.
+- **El split es aleatorio estratificado.** Los solicitantes se generan
+  i.i.d. sin fecha de originacion, asi que no hay dimension calendario que
+  un split cronologico deba proteger -- ni razon para que las metricas de
+  equidad de arriba fueran distintas bajo un split out-of-time.
 
 ## Arquitectura
 

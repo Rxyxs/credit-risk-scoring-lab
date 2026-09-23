@@ -360,6 +360,14 @@ Los tres enfoques comparten el mismo pipeline de datos (`src/cleaning.py`,
 `src/features.py`) y el mismo holdout de test, para que la comparacion
 sea metodologicamente limpia:
 
+**Sobre el split en si.** Los solicitantes se generan i.i.d. sin ningun
+campo de fecha de originacion, asi que no hay dimension calendario que un
+split out-of-time pueda proteger -- el holdout es un split aleatorio
+estratificado (`StratifiedKFold` para la validacion cruzada de los
+challengers ML, un solo split train/test estratificado para la
+comparacion final), que es la eleccion correcta para un problema de
+clasificacion transversal, no un sustituto de uno.
+
 | Enfoque | Modelo | AUC | Gini | KS | F1 (mejor umbral) |
 |---|---|---|---|---|---|
 | Baseline interpretable | **Scorecard R (WOE + Logit)** | **0.733** | **0.466** | **0.358** | — |

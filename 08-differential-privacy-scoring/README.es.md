@@ -150,6 +150,11 @@ para recuperar precision" no funciona bajo DP.
   ruido se agrega a una suma sobre un lote mucho mas grande mientras la senal
   crece con el. El precio de 18,4% de AUC pertenece a este regimen, y el
   regimen esta declarado en la tabla.
+- **El split train/holdout es aleatorio estratificado, no cronologico.**
+  Las filas se generan i.i.d. sin fecha de originacion, asi que no hay nada
+  que un split out-of-time protegeria aca -- y el diseno de los canarios
+  (perfiles impecables inyectados y rastreados por membresia, no por
+  tiempo) es el chequeo real de fuga que corre este proyecto.
 
 ## Arquitectura
 

@@ -147,6 +147,14 @@ todos los numeros de esa tabla.
   aproximaciones casi coinciden. Un test unitario construye el regimen
   contrario (discretizacion mas gruesa) y confirma que el encogimiento es
   sistematico, no ruido.
+- **El split es out-of-sample, no out-of-time, aunque los datos tienen 24
+  cohortes mensuales de originacion.** Los modelos de Cox y de hazard en
+  tiempo discreto se validan sobre un holdout aleatorio estratificado de
+  prestamos individuales, que testea generalizacion a nuevos solicitantes
+  dentro de la misma ventana de originacion -- no robustez a un cambio de
+  poblacion o macro en una vintage futura. La tecnica
+  [06](../06-optimal-binning-scorecard) corre el split out-of-time por
+  vintage que este proyecto no corre.
 
 ## Arquitectura
 

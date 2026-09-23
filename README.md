@@ -785,6 +785,23 @@ credit-risk-scoring-lab/
 | Interop | `reticulate` (R → Python), `rpy2` (Python → R), `ctypes` (Python → C) |
 | Charts | Matplotlib (static, versioned), Plotly (interactive, regenerated locally) |
 
+## Production readiness checklist
+
+Closing note for this lab's second week of work: what's actually verified
+as of this commit, not what's aspired to. Each row links to where it's
+checked, following the same rule as the rest of this README — a checkmark
+here means there's a command or a CI job that proves it, not a claim
+resting on this table alone.
+
+| | Item | Evidence |
+|---|---|---|
+| ✅ | Polyglot CI automated (13/13 jobs on GitHub Actions: Python + R + C) | [Continuous integration](#continuous-integration); latest green run linked from the badge at the top of this page |
+| ✅ | Test coverage (348 pytest, 50 testthat, 1020 C assertions) | Same section — three different units, kept separate rather than summed into one misleading number |
+| ✅ | Decoupled C engine (~142.8M rows/sec, defensive NaN/bounds checks) | [Section 6 of technique 01](01-polyglot-scorecard-r-python-c/README.md#6-c-engine--correctness-and-performance); `c/tests/test_score_engine.c` exercises the NULL/out-of-range paths directly |
+| ✅ | WOE scorecard + Beta regression / LGD in R (`mgcv`/`AER` validated) | [Technique 01](#01--polyglot-scorecard-r--python--c) (WOE/PDO) and [technique 02](#02--bidirectional-rpython-interop) (Tobit/GAM LGD); both packages installed and exercised by the `testthat` CI job, not just imported |
+| ✅ | 11 risk techniques operational, checked for temporal data leakage | Every technique's split methodology reviewed this week (see each README's validation note): 9 are cross-sectional simulations with no calendar dimension, where a stratified random split is the *correct* choice, not a shortcut; technique 06 runs a genuine vintage-based out-of-time split; technique 03 is flagged as the one honest gap — it has vintage cohorts it doesn't use for OOT, unlike 06 |
+| ✅ | Bilingual documentation (EN/ES) with architecture and interoperability diagrams | Every technique ships a `README.md`/`README.es.md` pair; Mermaid flowcharts in this README and in techniques 01/02's own READMEs; the `ctypes` memory-layout note in technique 01 and the `reticulate`/`rpy2` bridges in technique 02 |
+
 ## Author
 
 Pablo Reyes — [github.com/Rxyxs](https://github.com/Rxyxs)

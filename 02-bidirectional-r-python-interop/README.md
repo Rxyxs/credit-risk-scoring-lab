@@ -259,6 +259,10 @@ Final dataset: 8,000 clean rows (from 8,160 raw), 11.58% default rate.
 
 ## Credit scoring results
 
+Applicants are generated i.i.d. with no origination date, so train/test is
+a stratified random split rather than a chronological one — there's no
+calendar dimension here for an out-of-time split to protect against.
+
 | Model | AUC-ROC | KS | Gini |
 |---|---|---|---|
 | **Logistic Regression** | **0.750** | **0.424** | **0.501** |
@@ -346,6 +350,8 @@ LGD is a fraction in [0,1] with real point mass at both ends (full collateral re
 **Economic sign check, both models agree**: GDP growth *reduces* LGD (β = -0.0211, Tobit, p < 2e-16), unemployment *increases* it (β = +0.0126, p < 2e-16) -- both statistically significant and both consistent with recoveries actually deteriorating in worse macro conditions, not just a model artifact. The pipeline asserts these signs before saving the model (`stopifnot(pib_coef < 0, desempleo_coef > 0)`) -- a calibration with the wrong sign would be economically unusable for stress testing and shouldn't silently ship downstream.
 
 **A real, honest finding from comparing the two models, not smoothed over**: at a severe recession scenario (GDP -6%, unemployment 8%, typical collateral), the linear Tobit predicts LGD = 73.5%, while the GAM predicts **82.1%** -- a full 8.6-point gap. The GAM's smooth term on GDP growth (`edf = 3.38`, meaningfully nonlinear, not close to a straight line) captures a real pattern the Tobit's linear index can't: LGD deterioration accelerates disproportionately in severe downturns rather than scaling linearly with the GDP shock. This is exactly the kind of tail-risk understatement a linear model can hide from a risk committee, and it's the reason the GAM (not the Tobit) is the model actually used in the stress test below.
+
+**On validation.** Both models are fit on the full 1991-2024 panel, not a train/test split by year -- this is econometric calibration against real macro history, not a classifier scored on unseen individuals, so the right check is the economic-sign assertion above, not an out-of-time AUC. Worth being explicit about the limit that comes with it: the stress scenarios below are macro *inputs* fed back through the fitted model, not a genuinely held-out future economic cycle the model never saw during fitting.
 
 ## IFRS9 / Basel III stress test (rpy2, empirical LGD)
 

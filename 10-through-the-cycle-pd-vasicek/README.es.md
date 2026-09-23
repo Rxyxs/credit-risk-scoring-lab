@@ -173,6 +173,13 @@ funciona" de "la formula analitica es correcta de verdad".*
   0,24 conforme la PD va de 1 a 0, el capital es estrictamente creciente en
   la PD, exactamente lineal en la LGD, siempre positivo, y nunca supera la
   LGD.
+- **No hay split train/test, ni ninguna pregunta out-of-time que responder
+  aca.** La correlacion de activos es un parametro estructural estimado
+  sobre el mismo portafolio multi-anual contra el que se valida (el valor
+  verdadero del simulador, la formula de Basilea, una corrida Monte Carlo
+  independiente) -- nada aca es un modelo predictivo evaluado sobre un
+  periodo futuro separado, asi que no hay datos futuros de los que la
+  estimacion pueda filtrarse.
 
 ## Arquitectura
 

@@ -348,6 +348,14 @@ All three approaches share the same data pipeline (`src/cleaning.py`,
 `src/features.py`) and the same test holdout, so the comparison is
 methodologically clean:
 
+**On the split itself.** Applicants are generated i.i.d. with no
+origination-date field, so there is no calendar dimension an out-of-time
+split could protect — the holdout is a stratified random split
+(`StratifiedKFold` for the ML challengers' cross-validation, a single
+stratified train/test split for the final comparison), which is the
+correct choice for a cross-sectional classification problem, not a
+substitute for one.
+
 | Approach | Model | AUC | Gini | KS | F1 (best threshold) |
 |---|---|---|---|---|---|
 | Interpretable baseline | **Scorecard R (WOE + Logit)** | **0.733** | **0.466** | **0.358** | — |

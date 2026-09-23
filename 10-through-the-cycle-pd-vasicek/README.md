@@ -165,6 +165,12 @@ works" from "the analytic formula is actually correct."*
   between 0.12 and 0.24 as PD ranges from 1 to 0, capital is strictly
   increasing in PD, exactly linear in LGD, always positive, and never
   exceeds LGD.
+- **There's no train/test split, and no OOT question to answer here.**
+  Asset correlation is a structural parameter estimated from the same
+  multi-year portfolio it's validated against (the simulator's true value,
+  Basel's formula, an independent Monte Carlo run) — nothing here is a
+  predictive model being scored on a held-out future period, so there's no
+  future data for the estimation to leak from.
 
 ## Architecture
 

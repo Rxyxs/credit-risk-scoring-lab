@@ -150,6 +150,10 @@ rather than a ranking failure.*
   per-example differential privacy built in project 08 is the natural next
   layer; this project measures the gap DP would need to close, rather than
   closing it.
+- **Each bank's split is stratified random, not chronological.** Applicants
+  are generated i.i.d. per bank with no origination date, so there's no
+  calendar dimension a within-bank out-of-time split would be protecting —
+  the heterogeneity this project measures is across banks, not across time.
 
 ## Architecture
 

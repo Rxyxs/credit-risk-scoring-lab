@@ -141,6 +141,12 @@ inflated every number in that table.
   set, which is exactly the regime where the two approximations nearly agree.
   A unit test constructs the opposite regime (coarser discretisation) and
   confirms the shrinkage is systematic, not noise.
+- **The split is out-of-sample, not out-of-time, even though the data has
+  24 monthly origination vintages.** The Cox and discrete-time models are
+  validated on a stratified random holdout of individual loans, which tests
+  generalization to new borrowers within the same origination window — not
+  robustness to a future vintage's population or macro shift. [06](../06-optimal-binning-scorecard)
+  runs the vintage-based out-of-time split this project doesn't.
 
 ## Architecture
 

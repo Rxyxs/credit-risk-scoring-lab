@@ -187,6 +187,10 @@ assuming.
   that changes no prediction. Before centring, no-pooling RMSE read 0.5818;
   after, 0.3873. The first number would have made partial pooling look better
   than it is.
+- **The train/test split is stratified random, and that's the right choice
+  here.** Segments are branches and applicant types, not origination
+  cohorts — the simulator has no calendar dimension, so there's no
+  out-of-time question to beg by not doing a chronological split.
 
 ## Architecture
 
