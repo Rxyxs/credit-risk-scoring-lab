@@ -24,6 +24,7 @@ jobs:
           - 09-reject-inference-selection-bias
           - 10-through-the-cycle-pd-vasicek
           - 11-federated-credit-scoring
+          - 12-drift-monitoring-psi-ks
     defaults:
       run:
         working-directory: ${{ matrix.folder }}

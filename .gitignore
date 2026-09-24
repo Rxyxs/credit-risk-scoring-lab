@@ -31,3 +31,6 @@ Thumbs.db
 # each module's source script.
 **/output/interactive/
 **/outputs/interactive/
+
+# Salida del demo de 12-drift-monitoring-psi-ks (datos sinteticos, se regenera con run_pipeline.py)
+12-drift-monitoring-psi-ks/drift_report.json
