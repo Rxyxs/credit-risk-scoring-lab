@@ -3,6 +3,28 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# Configuración local / secretos
+.env
+.env.local
+.env.*
+!.env.example
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Binarios compilados (01's score_engine.c builds libscore_engine.so/.dylib/.dll
+# and score_bench into outputs/models/, which is otherwise NOT globally
+# ignored since committed figures live under outputs/ too)
+*.so
+*.dylib
+*.dll
+*.exe
+*.o
+*.obj
+
 # Interactive Plotly dashboards: each embeds the full Plotly.js bundle inline
 # (~4-5MB per file), which was making GitHub misdetect the repo's primary
 # language as HTML instead of the real polyglot code. Regenerate locally from
