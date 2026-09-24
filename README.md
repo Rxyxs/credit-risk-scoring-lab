@@ -614,7 +614,11 @@ Each component below is built directly and pinned to an independent check:
 ### Testing standard
 
 Techniques 03–11 ship **325 tests**; technique 01 reports 23 passing (plus 10
-skipped without a locally compiled C engine) in its own README.
+skipped without a locally compiled C engine) in its own README; technique 02
+adds **8 more** — its MLP loss/training and DuckDB metrics-persistence tests
+(`02-bidirectional-r-python-interop/tests/`), which need no R runtime since
+neither imports `rpy2` at module load time. The R⇄Python bridge itself is
+exercised separately, by the `testthat` job below.
 They target what fails *silently* rather than loudly: an analytic identity the
 implementation must reproduce, a hand-computed example, a property that must
 hold (coverage, monotonicity, composition), or a planted effect a diagnostic is
@@ -635,12 +639,12 @@ quiet.
 
 ### Continuous integration
 
-Every push and pull request to `main` runs **13 independent jobs on
+Every push and pull request to `main` runs **14 independent jobs on
 `ubuntu-latest`**, one workflow, three languages — [`.github/workflows/tests.yml`](.github/workflows/tests.yml):
 
 | Language | Jobs | What each job runs | Latest green run |
 |---|---|---|---|
-| Python | 10 (one per technique: 01, 03–11) | `pytest tests/ -q` | **348 passed**, 10 skipped¹ |
+| Python | 11 (one per technique: 01–11) | `pytest tests/ -q` | **356 passed**, 10 skipped¹ |
 | R (`testthat`) | 2 (techniques 01 and 02) | WOE/IV binning, PDO scorecard scaling (01); empirical LGD panel simulation and Beta/Logit calibration (02) | **50 assertions passed** |
 | C (`gcc`, `make test`) | 1 (technique 01's `score_engine.c`) | Exact numeric correctness, NULL/out-of-range safety, batch-vs-single-row consistency | **1020 assertions passed**² |
 
@@ -795,8 +799,8 @@ resting on this table alone.
 
 | | Item | Evidence |
 |---|---|---|
-| ✅ | Polyglot CI automated (13/13 jobs on GitHub Actions: Python + R + C) | [Continuous integration](#continuous-integration); latest green run linked from the badge at the top of this page |
-| ✅ | Test coverage (348 pytest, 50 testthat, 1020 C assertions) | Same section — three different units, kept separate rather than summed into one misleading number |
+| ✅ | Polyglot CI automated (14/14 jobs on GitHub Actions: Python + R + C) | [Continuous integration](#continuous-integration); latest green run linked from the badge at the top of this page |
+| ✅ | Test coverage (356 pytest, 50 testthat, 1020 C assertions) | Same section — three different units, kept separate rather than summed into one misleading number |
 | ✅ | Decoupled C engine (~142.8M rows/sec, defensive NaN/bounds checks) | [Section 6 of technique 01](01-polyglot-scorecard-r-python-c/README.md#6-c-engine--correctness-and-performance); `c/tests/test_score_engine.c` exercises the NULL/out-of-range paths directly |
 | ✅ | WOE scorecard + Beta regression / LGD in R (`mgcv`/`AER` validated) | [Technique 01](#01--polyglot-scorecard-r--python--c) (WOE/PDO) and [technique 02](#02--bidirectional-rpython-interop) (Tobit/GAM LGD); both packages installed and exercised by the `testthat` CI job, not just imported |
 | ✅ | 11 risk techniques operational, checked for temporal data leakage | Every technique's split methodology reviewed this week (see each README's validation note): 9 are cross-sectional simulations with no calendar dimension, where a stratified random split is the *correct* choice, not a shortcut; technique 06 runs a genuine vintage-based out-of-time split; technique 03 is flagged as the one honest gap — it has vintage cohorts it doesn't use for OOT, unlike 06 |

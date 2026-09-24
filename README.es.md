@@ -652,7 +652,12 @@ verificacion independiente:
 
 Las tecnicas 03-11 traen **325 tests**; la tecnica 01 reporta 23 aprobados
 (mas 10 que se saltan sin un motor en C compilado localmente) en su propio
-README. Apuntan a lo que falla *en silencio* y no con un error: una identidad
+README; la tecnica 02 suma **8 mas** — sus tests de la loss/entrenamiento del
+MLP y de la persistencia de metricas en DuckDB
+(`02-bidirectional-r-python-interop/tests/`), que no necesitan runtime de R
+porque ninguno de los dos importa `rpy2` al cargar el modulo. El puente
+R-Python en si se ejercita aparte, en el job `testthat` de abajo.
+Apuntan a lo que falla *en silencio* y no con un error: una identidad
 analitica que la implementacion tiene que reproducir, un ejemplo calculado a
 mano, una propiedad que debe cumplirse (cobertura, monotonia, composicion), o un
 efecto plantado que un diagnostico esta obligado a detectar — y, igual de
@@ -672,13 +677,13 @@ importante, casos donde un diagnostico debe quedarse callado.
 
 ### Integracion continua
 
-Cada push y pull request a `main` corre **13 jobs independientes en
+Cada push y pull request a `main` corre **14 jobs independientes en
 `ubuntu-latest`**, un solo workflow, tres lenguajes —
 [`.github/workflows/tests.yml`](.github/workflows/tests.yml):
 
 | Lenguaje | Jobs | Que corre cada job | Ultima corrida verde |
 |---|---|---|---|
-| Python | 10 (una por tecnica: 01, 03-11) | `pytest tests/ -q` | **348 aprobados**, 10 saltados¹ |
+| Python | 11 (una por tecnica: 01-11) | `pytest tests/ -q` | **356 aprobados**, 10 saltados¹ |
 | R (`testthat`) | 2 (tecnicas 01 y 02) | Binning WOE/IV, escalamiento PDO del scorecard (01); simulacion del panel de LGD empirica y calibracion Beta/Logit (02) | **50 aserciones aprobadas** |
 | C (`gcc`, `make test`) | 1 (`score_engine.c` de la tecnica 01) | Correctitud numerica exacta, manejo seguro de NULL/fuera de rango, consistencia entre lote y fila individual | **1020 aserciones aprobadas**² |
 
@@ -846,8 +851,8 @@ CI que lo demuestra, no una afirmacion que descansa solo en esta tabla.
 
 | | Item | Evidencia |
 |---|---|---|
-| ✅ | CI poliglota automatizado (13/13 jobs en GitHub Actions: Python + R + C) | [Integracion continua](#integracion-continua); ultima corrida verde enlazada desde el badge arriba de esta pagina |
-| ✅ | Cobertura de tests (348 pytest, 50 testthat, 1020 aserciones C) | Misma seccion -- tres unidades distintas, mantenidas separadas en vez de sumarse en un numero unico enganoso |
+| ✅ | CI poliglota automatizado (14/14 jobs en GitHub Actions: Python + R + C) | [Integracion continua](#integracion-continua); ultima corrida verde enlazada desde el badge arriba de esta pagina |
+| ✅ | Cobertura de tests (356 pytest, 50 testthat, 1020 aserciones C) | Misma seccion -- tres unidades distintas, mantenidas separadas en vez de sumarse en un numero unico enganoso |
 | ✅ | Motor en C desacoplado (~142,8M filas/seg, chequeos defensivos NaN/rango) | [Seccion 6 de la tecnica 01](01-polyglot-scorecard-r-python-c/README.es.md#6-motor-en-c--correctitud-y-desempeno); `c/tests/test_score_engine.c` ejercita directamente los caminos NULL/fuera-de-rango |
 | ✅ | Scorecard WOE + regresion Beta / LGD en R (`mgcv`/`AER` validados) | [Tecnica 01](#01--scorecard-poliglota-r--python--c) (WOE/PDO) y [tecnica 02](#02--interoperabilidad-bidireccional-rpython) (LGD Tobit/GAM); ambos paquetes instalados y ejercitados por el job de CI de `testthat`, no solo importados |
 | ✅ | 11 tecnicas de riesgo operacionales, chequeadas por fuga de datos temporal | Se reviso la metodologia de split de cada tecnica esta semana (ver la nota de validacion en cada README): 9 son simulaciones transversales sin dimension calendario, donde un split aleatorio estratificado es la eleccion *correcta*, no un atajo; la tecnica 06 corre un split out-of-time genuino por vintage; la tecnica 03 queda marcada como el vacio honesto -- tiene cohortes vintage que no usa para OOT, a diferencia de la 06 |

@@ -15,6 +15,13 @@ jobs:
       matrix:
         folder:
           - 01-polyglot-scorecard-r-python-c
+          # Solo sus 2 archivos de tests Python (MLP y persistencia DuckDB):
+          # ninguno de los dos importa rpy2 a nivel de módulo (solo
+          # lgd_stress_test.py lo hace, y de forma perezosa dentro de sus
+          # funciones), así que corren limpio sin R instalado -- verificado
+          # localmente: 8 passed. El bridge R<->Python en sí lo cubre el job
+          # `r-tests` de abajo, que sí instala R.
+          - 02-bidirectional-r-python-interop
           - 03-survival-lifetime-pd-term-structure
           - 04-bayesian-hierarchical-partial-pooling
           - 05-monotonic-constraints-conformal-decisioning
