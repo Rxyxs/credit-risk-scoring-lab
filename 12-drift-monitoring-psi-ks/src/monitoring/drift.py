@@ -33,7 +33,7 @@ PSI_ALERT_THRESHOLD = 0.10
 PSI_CRITICAL_THRESHOLD = 0.25
 KS_ALPHA = 0.05
 
-# Colores de badge por estado, fijados por el Día 4 -- un solo lugar para que
+# Colores de badge por estado, en un solo lugar para que
 # export_drift_html no pueda desincronizarse de classify_psi.
 _BADGE_COLOR = {"green": "#28a745", "yellow": "#ffc107", "red": "#dc3545"}
 _BADGE_LABEL = {"green": "ESTABLE", "yellow": "ALERTA", "red": "CRITICO"}
