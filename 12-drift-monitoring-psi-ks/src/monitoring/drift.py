@@ -19,6 +19,11 @@ features de entrada antes de siquiera llegar al modelo.
 """
 from __future__ import annotations
 
+import datetime as dt
+import json
+from html import escape
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -27,6 +32,15 @@ EPSILON = 1e-6
 PSI_ALERT_THRESHOLD = 0.10
 PSI_CRITICAL_THRESHOLD = 0.25
 KS_ALPHA = 0.05
+
+# Colores de badge por estado, fijados por el Día 4 -- un solo lugar para que
+# export_drift_html no pueda desincronizarse de classify_psi.
+_BADGE_COLOR = {"green": "#28a745", "yellow": "#ffc107", "red": "#dc3545"}
+_BADGE_LABEL = {"green": "ESTABLE", "yellow": "ALERTA", "red": "CRITICO"}
+# Tope para la barra de magnitud: un PSI de 0.5 ya es un drift severo varias
+# veces por encima del umbral crítico (0.25) -- capar ahí evita que un
+# outlier de PSI=3.0 deje a todas las demás barras ilegibles por comparación.
+_PSI_BAR_CAP = 0.5
 
 
 def _bucket_edges(expected: np.ndarray, num_buckets: int) -> np.ndarray:
@@ -141,3 +155,105 @@ def _valores_finitos(x, nombre: str) -> np.ndarray:
     if valores.size == 0:
         raise ValueError(f"'{nombre}' no tiene ningun valor finito para calcular drift")
     return valores
+
+
+def _overall_status(report: dict) -> str:
+    """Semáforo del reporte completo: el peor estado entre todas las features."""
+    if report["features_criticas"]:
+        return "red"
+    if report["features_en_alerta"]:
+        return "yellow"
+    return "green"
+
+
+def export_drift_json(report: dict, json_path) -> Path:
+    """Exporta `report` (de `generate_drift_report`) a JSON formateado, con
+    timestamp de generación y el semáforo agregado del reporte completo.
+    """
+    payload = {
+        **report,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "overall_status": _overall_status(report),
+    }
+    json_path = Path(json_path)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    return json_path
+
+
+def _badge(status: str) -> str:
+    color = _BADGE_COLOR[status]
+    label = _BADGE_LABEL[status]
+    return (
+        f'<span style="background:{color};color:#fff;padding:2px 10px;'
+        f'border-radius:12px;font-size:0.85em;font-weight:600;">{label}</span>'
+    )
+
+
+def _psi_bar(psi: float, status: str) -> str:
+    color = _BADGE_COLOR[status]
+    ancho = min(max(psi, 0.0) / _PSI_BAR_CAP, 1.0) * 100
+    return (
+        '<div style="background:#e9ecef;border-radius:4px;width:140px;height:10px;'
+        'display:inline-block;vertical-align:middle;overflow:hidden;">'
+        f'<div style="background:{color};width:{ancho:.1f}%;height:100%;"></div>'
+        "</div>"
+    )
+
+
+def export_drift_html(report: dict, html_path) -> Path:
+    """Genera un reporte HTML autónomo (CSS inline, sin JS ni dependencias
+    externas) con una fila por feature: PSI, badge de color, barra de
+    magnitud, y el resultado de KS.
+    """
+    estado_general = _overall_status(report)
+    generado = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+
+    filas = []
+    for feature, datos in report["features"].items():
+        filas.append(
+            "<tr>"
+            f"<td>{escape(feature)}</td>"
+            f"<td>{datos['psi']:.4f}</td>"
+            f"<td>{_psi_bar(datos['psi'], datos['psi_status'])}</td>"
+            f"<td>{_badge(datos['psi_status'])}</td>"
+            f"<td>{datos['ks_statistic']:.4f}</td>"
+            f"<td>{datos['ks_p_value']:.4g}</td>"
+            f"<td>{'si' if datos['ks_drift_detected'] else 'no'}</td>"
+            "</tr>"
+        )
+
+    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Reporte de Drift</title>
+<style>
+  body {{ font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; color: #212529; }}
+  h1 {{ font-size: 1.4rem; margin-bottom: 0.2rem; }}
+  .meta {{ color: #6c757d; font-size: 0.9em; margin-bottom: 1.2rem; }}
+  table {{ border-collapse: collapse; width: 100%; max-width: 900px; }}
+  th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #dee2e6; }}
+  th {{ background: #f8f9fa; font-weight: 600; }}
+  .resumen {{ margin-bottom: 1rem; }}
+</style>
+</head>
+<body>
+  <h1>Reporte de Drift</h1>
+  <div class="meta">Generado {escape(generado)} -- {report['n_baseline']} filas base vs. {report['n_scoring']} filas scoring</div>
+  <div class="resumen">Estado general: {_badge(estado_general)}</div>
+  <table>
+    <thead>
+      <tr><th>Feature</th><th>PSI</th><th>Magnitud</th><th>Estado</th><th>KS stat</th><th>KS p-valor</th><th>Drift KS</th></tr>
+    </thead>
+    <tbody>
+      {''.join(filas)}
+    </tbody>
+  </table>
+</body>
+</html>
+"""
+    html_path = Path(html_path)
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+    html_path.write_text(html, encoding="utf-8")
+    return html_path
