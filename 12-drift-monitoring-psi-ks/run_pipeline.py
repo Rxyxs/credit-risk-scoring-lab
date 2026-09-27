@@ -6,6 +6,13 @@ alguna feature quedó en rojo (PSI > 0.25).
     python run_pipeline.py                                    # reporta, no bloquea
     python run_pipeline.py --fail-on-red                       # bloquea si hay rojo
     python run_pipeline.py --output-dir otra/ruta               # default: outputs/
+    python run_pipeline.py --auto-retrain-trigger               # dispara DriftRemediationManager
+
+`--fail-on-red` y `--auto-retrain-trigger` son independientes: el primero es
+un gate de CI (falla el build si hay drift crítico), el segundo es un flujo
+de orquestación (empaqueta snapshot+manifiesto para que algo afuera
+reentrene). Con los dos juntos, el manifiesto se escribe igual y el build
+igual falla -- uno no cancela al otro.
 """
 from __future__ import annotations
 
@@ -18,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from src.monitoring.drift import export_drift_html, export_drift_json, generate_drift_report
+from src.remediation.trigger import DriftRemediationManager
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -55,6 +63,17 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--output-dir", default="outputs",
         help="Carpeta donde escribir drift_report.html y drift_report.json (default: outputs/).",
     )
+    parser.add_argument(
+        "--auto-retrain-trigger", action="store_true",
+        help=(
+            "Evalua el reporte con DriftRemediationManager: en rojo escribe un snapshot "
+            "y un manifiesto de reentrenamiento en <output-dir>/snapshots/."
+        ),
+    )
+    parser.add_argument(
+        "--model-version", default="unknown",
+        help="Version del modelo actualmente en produccion (va en el manifiesto de reentrenamiento).",
+    )
     return parser.parse_args(argv)
 
 
@@ -86,6 +105,14 @@ def main(argv: list[str] | None = None, baseline_df: pd.DataFrame | None = None,
     html_path = export_drift_html(reporte, output_dir / "drift_report.html")
     print(f"\nreporte -> {json_path}")
     print(f"reporte -> {html_path}")
+
+    if args.auto_retrain_trigger:
+        manager = DriftRemediationManager(current_model_version=args.model_version)
+        resultado = manager.evaluate_and_trigger(reporte, scoring_df, output_dir / "snapshots")
+        print(f"\nremediacion -> status={resultado['status']}  action={resultado['action']}")
+        if resultado["status"] == "red":
+            print(f"snapshot -> {resultado['snapshot_path']}")
+            print(f"manifiesto -> {resultado['manifest_path']}")
 
     if args.fail_on_red and reporte["features_criticas"]:
         logger.error(

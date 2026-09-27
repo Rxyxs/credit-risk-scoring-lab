@@ -32,5 +32,7 @@ Thumbs.db
 **/output/interactive/
 **/outputs/interactive/
 
-# Salida del demo de 12-drift-monitoring-psi-ks (datos sinteticos, se regenera con run_pipeline.py)
+# Salida del demo de 12-drift-monitoring-psi-ks (datos sinteticos, se regenera con
+# run_pipeline.py): reportes de drift, snapshots de reentrenamiento y sus manifiestos.
 12-drift-monitoring-psi-ks/drift_report.json
+12-drift-monitoring-psi-ks/outputs/

@@ -157,8 +157,13 @@ def _valores_finitos(x, nombre: str) -> np.ndarray:
     return valores
 
 
-def _overall_status(report: dict) -> str:
-    """Semáforo del reporte completo: el peor estado entre todas las features."""
+def overall_status(report: dict) -> str:
+    """Semáforo del reporte completo: el peor estado entre todas las features.
+
+    Público (no `_overall_status`): `src/remediation/trigger.py` necesita el
+    mismo criterio para decidir si dispara remediación, sin reimplementar la
+    prioridad red > yellow > green en otro archivo.
+    """
     if report["features_criticas"]:
         return "red"
     if report["features_en_alerta"]:
@@ -173,7 +178,7 @@ def export_drift_json(report: dict, json_path) -> Path:
     payload = {
         **report,
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
-        "overall_status": _overall_status(report),
+        "overall_status": overall_status(report),
     }
     json_path = Path(json_path)
     json_path.parent.mkdir(parents=True, exist_ok=True)
@@ -206,7 +211,7 @@ def export_drift_html(report: dict, html_path) -> Path:
     externas) con una fila por feature: PSI, badge de color, barra de
     magnitud, y el resultado de KS.
     """
-    estado_general = _overall_status(report)
+    estado_general = overall_status(report)
     generado = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
     filas = []
