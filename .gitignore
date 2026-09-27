@@ -36,3 +36,7 @@ Thumbs.db
 # run_pipeline.py): reportes de drift, snapshots de reentrenamiento y sus manifiestos.
 12-drift-monitoring-psi-ks/drift_report.json
 12-drift-monitoring-psi-ks/outputs/
+
+# Salida de 13-feature-store-duckdb: el archivo .duckdb del feature store offline,
+# se reconstruye ingiriendo de nuevo los manifiestos de la tecnica 12.
+13-feature-store-duckdb/outputs/

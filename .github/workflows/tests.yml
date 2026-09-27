@@ -25,6 +25,7 @@ jobs:
           - 10-through-the-cycle-pd-vasicek
           - 11-federated-credit-scoring
           - 12-drift-monitoring-psi-ks
+          - 13-feature-store-duckdb
     defaults:
       run:
         working-directory: ${{ matrix.folder }}

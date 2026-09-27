@@ -31,21 +31,31 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
+ID_COLUMN = "client_id"
+
+
 def build_demo_dataframes(shift: float = 1.0, seed: int = 2024) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Base (train) y scoring (OOT) sintéticos. `shift` mueve la media de
     `ingreso_mensual` en `scoring` en unidades de desvío estándar de la base
     -- `shift=1.0` (default) reproduce el drift severo real medido en el
     README; `shift=0.0` genera scoring de la misma distribución que la base,
     sin drift en ninguna feature (usado por los tests para el caso estable).
+
+    `client_id` identifica cada fila para que el snapshot que se manda a
+    `13-feature-store-duckdb/` en rojo tenga con qué hacer upsert -- no es
+    una feature de negocio, así que `main()` la excluye explícitamente de
+    `generate_drift_report` (un ID no tiene "drift", solo cambia de valor).
     """
     rng = np.random.default_rng(seed)
 
     baseline = pd.DataFrame({
+        "client_id": [f"CLI-{i:06d}" for i in range(5_000)],
         "ingreso_mensual": rng.normal(loc=800_000, scale=150_000, size=5_000),
         "dti": rng.beta(2, 5, size=5_000),
         "antiguedad_laboral_meses": rng.exponential(scale=36, size=5_000),
     })
     scoring = pd.DataFrame({
+        "client_id": [f"CLI-{i:06d}" for i in range(5_000, 7_000)],
         "ingreso_mensual": rng.normal(loc=800_000 + shift * 150_000, scale=160_000, size=2_000),
         "dti": rng.beta(2, 5, size=2_000),
         "antiguedad_laboral_meses": rng.exponential(scale=36, size=2_000),
@@ -88,7 +98,8 @@ def main(argv: list[str] | None = None, baseline_df: pd.DataFrame | None = None,
     if baseline_df is None or scoring_df is None:
         baseline_df, scoring_df = build_demo_dataframes()
 
-    reporte = generate_drift_report(baseline_df, scoring_df, list(baseline_df.columns))
+    features = [c for c in baseline_df.columns if c != ID_COLUMN]
+    reporte = generate_drift_report(baseline_df, scoring_df, features)
 
     print(f"baseline n={reporte['n_baseline']}  scoring n={reporte['n_scoring']}\n")
     for feature, datos in reporte["features"].items():

@@ -184,6 +184,7 @@ def test_cli_defaults_output_dir_to_outputs(tmp_path, monkeypatch):
 
 def test_build_demo_dataframes_with_zero_shift_has_no_critical_feature():
     baseline, scoring = build_demo_dataframes(shift=0.0)
-    reporte = generate_drift_report(baseline, scoring, list(baseline.columns))
+    features = [c for c in baseline.columns if c != "client_id"]
+    reporte = generate_drift_report(baseline, scoring, features)
 
     assert reporte["features_criticas"] == []
