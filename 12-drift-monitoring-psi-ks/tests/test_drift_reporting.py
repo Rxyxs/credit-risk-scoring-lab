@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from run_pipeline import build_demo_dataframes, main
+from run_pipeline import NON_FEATURE_COLUMNS, build_demo_dataframes, main
 from src.monitoring.drift import export_drift_html, export_drift_json, generate_drift_report
 
 FEATURES = ["estable", "corrida"]
@@ -184,7 +184,7 @@ def test_cli_defaults_output_dir_to_outputs(tmp_path, monkeypatch):
 
 def test_build_demo_dataframes_with_zero_shift_has_no_critical_feature():
     baseline, scoring = build_demo_dataframes(shift=0.0)
-    features = [c for c in baseline.columns if c != "client_id"]
+    features = [c for c in baseline.columns if c not in NON_FEATURE_COLUMNS]
     reporte = generate_drift_report(baseline, scoring, features)
 
     assert reporte["features_criticas"] == []

@@ -40,3 +40,7 @@ Thumbs.db
 # Salida de 13-feature-store-duckdb: el archivo .duckdb del feature store offline,
 # se reconstruye ingiriendo de nuevo los manifiestos de la tecnica 12.
 13-feature-store-duckdb/outputs/
+
+# Salida de 14-shadow-model-training: el .pkl del modelo sombra y sus metricas,
+# se reconstruyen reentrenando contra el feature store de la tecnica 13.
+14-shadow-model-training/outputs/

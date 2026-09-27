@@ -32,6 +32,18 @@ logger = logging.getLogger(__name__)
 
 
 ID_COLUMN = "client_id"
+TARGET_COLUMN = "default_flag"
+NON_FEATURE_COLUMNS = (ID_COLUMN, TARGET_COLUMN)
+
+
+def _default_flag(rng: np.random.Generator, dti: np.ndarray, ingreso_mensual: np.ndarray) -> np.ndarray:
+    """Target binario sintetico, correlacionado de verdad con dti (a favor)
+    e ingreso_mensual (en contra) -- no ruido puro: `14-shadow-model-training/`
+    necesita una columna de target con señal real para que su prueba de "el
+    pipeline aprende algo, no solo corre" tenga sentido sobre estos mismos datos."""
+    z = 3.0 * (dti - dti.mean()) / dti.std() - 1.5 * (ingreso_mensual - ingreso_mensual.mean()) / ingreso_mensual.std()
+    p_default = 1 / (1 + np.exp(-z))
+    return rng.binomial(1, p_default)
 
 
 def build_demo_dataframes(shift: float = 1.0, seed: int = 2024) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -41,24 +53,34 @@ def build_demo_dataframes(shift: float = 1.0, seed: int = 2024) -> tuple[pd.Data
     README; `shift=0.0` genera scoring de la misma distribución que la base,
     sin drift en ninguna feature (usado por los tests para el caso estable).
 
-    `client_id` identifica cada fila para que el snapshot que se manda a
-    `13-feature-store-duckdb/` en rojo tenga con qué hacer upsert -- no es
-    una feature de negocio, así que `main()` la excluye explícitamente de
-    `generate_drift_report` (un ID no tiene "drift", solo cambia de valor).
+    `client_id` y `default_flag` no son features de negocio para el drift:
+    el primero identifica cada fila para que el snapshot que se manda a
+    `13-feature-store-duckdb/` en rojo tenga con qué hacer upsert, el segundo
+    es el target que `14-shadow-model-training/` entrena después -- por eso
+    `main()` excluye a los dos de `generate_drift_report` explícitamente (un
+    ID no tiene "drift", y un target monitoreado como si fuera una feature de
+    entrada no tendría sentido de negocio, aunque el cálculo no fallaría).
     """
     rng = np.random.default_rng(seed)
 
+    dti_base = rng.beta(2, 5, size=5_000)
+    ingreso_base = rng.normal(loc=800_000, scale=150_000, size=5_000)
     baseline = pd.DataFrame({
         "client_id": [f"CLI-{i:06d}" for i in range(5_000)],
-        "ingreso_mensual": rng.normal(loc=800_000, scale=150_000, size=5_000),
-        "dti": rng.beta(2, 5, size=5_000),
+        "ingreso_mensual": ingreso_base,
+        "dti": dti_base,
         "antiguedad_laboral_meses": rng.exponential(scale=36, size=5_000),
+        "default_flag": _default_flag(rng, dti_base, ingreso_base),
     })
+
+    dti_scoring = rng.beta(2, 5, size=2_000)
+    ingreso_scoring = rng.normal(loc=800_000 + shift * 150_000, scale=160_000, size=2_000)
     scoring = pd.DataFrame({
         "client_id": [f"CLI-{i:06d}" for i in range(5_000, 7_000)],
-        "ingreso_mensual": rng.normal(loc=800_000 + shift * 150_000, scale=160_000, size=2_000),
-        "dti": rng.beta(2, 5, size=2_000),
+        "ingreso_mensual": ingreso_scoring,
+        "dti": dti_scoring,
         "antiguedad_laboral_meses": rng.exponential(scale=36, size=2_000),
+        "default_flag": _default_flag(rng, dti_scoring, ingreso_scoring),
     })
     return baseline, scoring
 
@@ -98,7 +120,7 @@ def main(argv: list[str] | None = None, baseline_df: pd.DataFrame | None = None,
     if baseline_df is None or scoring_df is None:
         baseline_df, scoring_df = build_demo_dataframes()
 
-    features = [c for c in baseline_df.columns if c != ID_COLUMN]
+    features = [c for c in baseline_df.columns if c not in NON_FEATURE_COLUMNS]
     reporte = generate_drift_report(baseline_df, scoring_df, features)
 
     print(f"baseline n={reporte['n_baseline']}  scoring n={reporte['n_scoring']}\n")

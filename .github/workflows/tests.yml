@@ -26,6 +26,7 @@ jobs:
           - 11-federated-credit-scoring
           - 12-drift-monitoring-psi-ks
           - 13-feature-store-duckdb
+          - 14-shadow-model-training
     defaults:
       run:
         working-directory: ${{ matrix.folder }}
