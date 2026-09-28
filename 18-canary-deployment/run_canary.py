@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.canary_router import DEFAULT_CONFIG_PATH, CanaryRouter
+from src.canary_router import DEFAULT_CONFIG_PATH, DEFAULT_LOG_DB_PATH, CanaryRouter
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -40,6 +40,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--input-data", default=None, help="CSV con client_id + features a puntuar.")
     parser.add_argument("--champion-model", default=None, help="Ruta al .pkl del modelo Champion.")
     parser.add_argument("--canary-model", default=None, help="Ruta al .pkl del modelo Canary (challenger).")
+    parser.add_argument("--db-path", default=DEFAULT_LOG_DB_PATH, help="Donde loguear las predicciones enrutadas.")
     return parser.parse_args(argv)
 
 
@@ -80,10 +81,12 @@ def main(argv: list[str] | None = None) -> int:
 
     input_df = pd.read_csv(args.input_data)
     predicciones = router.route_and_predict(args.champion_model, args.canary_model, input_df, canary_percentage)
+    filas_logueadas = router.log_routing_decisions(predicciones, args.db_path)
 
     print(predicciones.to_string(index=False))
     conteo = predicciones["assigned_model"].value_counts().to_dict()
     print(f"\nasignacion: {conteo}")
+    print(f"{filas_logueadas} predicciones logueadas -> {args.db_path}")
     return 0
 
 

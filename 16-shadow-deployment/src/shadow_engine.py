@@ -131,6 +131,10 @@ class ShadowDeploymentEngine:
         haya sido puntuado antes -- a diferencia de `credit_features`
         (técnica 13), acá el punto es preservar el historial completo de
         cada corrida de inferencia, no solo el valor más reciente."""
+        db_path = Path(db_path)
+        if str(db_path) != ":memory:":
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+
         con = duckdb.connect(str(db_path))
         try:
             con.register("_staging", predictions_df)

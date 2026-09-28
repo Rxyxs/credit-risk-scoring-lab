@@ -181,6 +181,19 @@ def test_log_dual_predictions_crea_la_tabla_y_agrega_filas(tmp_path):
     assert total == 5  # append, no upsert -- las dos corridas coexisten
 
 
+def test_log_dual_predictions_crea_el_directorio_padre_si_no_existe(tmp_path):
+    """Regresion: duckdb.connect no crea directorios padre por su cuenta --
+    esto crasheaba con IOException antes de que log_dual_predictions hiciera
+    el mkdir explicito."""
+    db_path = tmp_path / "no" / "existe" / "todavia" / "logs.duckdb"
+    champion = _modelo_entrenado()
+    engine = ShadowDeploymentEngine(registry_dir=tmp_path / "registry-vacio")
+
+    engine.log_dual_predictions(engine.predict_dual(champion, _clientes_de_prueba(2)), db_path)
+
+    assert db_path.exists()
+
+
 # ------------------------------------------------------------ CLI: run_shadow_serving.py
 
 def test_find_latest_decision_elige_el_mas_reciente(tmp_path):

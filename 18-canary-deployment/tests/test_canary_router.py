@@ -5,13 +5,14 @@ import json
 import pickle
 from pathlib import Path
 
+import duckdb
 import numpy as np
 import pandas as pd
 import pytest
 from sklearn.dummy import DummyClassifier
 
 from run_canary import main
-from src.canary_router import CANARY, CHAMPION, CanaryRouter, InvalidCanaryPercentageError
+from src.canary_router import CANARY, CHAMPION, LOG_TABLE_NAME, CanaryRouter, InvalidCanaryPercentageError
 
 FEATURES = ["ingreso_mensual", "dti"]
 
@@ -197,6 +198,40 @@ def test_route_and_predict_acepta_rutas_a_pkl(tmp_path):
 
     assert len(resultado) == 20
     assert not resultado["prediction"].isna().any()
+
+
+# --------------------------------------------------------------- log_routing_decisions
+
+def test_log_routing_decisions_crea_la_tabla_y_agrega_filas(tmp_path):
+    champion = _modelo_constante(0)
+    canary = _modelo_constante(1)
+    router = CanaryRouter()
+    db_path = tmp_path / "logs.duckdb"
+
+    predicciones_1 = router.route_and_predict(champion, canary, _clientes(10), canary_percentage=30)
+    n1 = router.log_routing_decisions(predicciones_1, db_path)
+    predicciones_2 = router.route_and_predict(champion, canary, _clientes(5, prefijo="OTR"), canary_percentage=30)
+    n2 = router.log_routing_decisions(predicciones_2, db_path)
+
+    assert n1 == 10 and n2 == 5
+
+    con = duckdb.connect(str(db_path))
+    total = con.execute(f"SELECT count(*) FROM {LOG_TABLE_NAME}").fetchone()[0]
+    con.close()
+    assert total == 15  # append, no upsert -- las dos corridas coexisten
+
+
+def test_log_routing_decisions_crea_el_directorio_padre_si_no_existe(tmp_path):
+    """Regresion: duckdb.connect no crea directorios padre por su cuenta."""
+    champion = _modelo_constante(0)
+    canary = _modelo_constante(1)
+    router = CanaryRouter()
+    db_path = tmp_path / "no" / "existe" / "todavia" / "logs.duckdb"
+
+    predicciones = router.route_and_predict(champion, canary, _clientes(5), canary_percentage=30)
+    router.log_routing_decisions(predicciones, db_path)
+
+    assert db_path.exists()
 
 
 # ------------------------------------------------------------------- CLI: run_canary.py

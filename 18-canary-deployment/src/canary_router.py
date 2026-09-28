@@ -21,11 +21,14 @@ import pickle
 from pathlib import Path
 from typing import Any
 
+import duckdb
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = "outputs/canary_config.json"
+DEFAULT_LOG_DB_PATH = "outputs/canary_predictions.duckdb"
+LOG_TABLE_NAME = "canary_routing_log"
 ID_COLUMN = "client_id"
 CANARY = "CANARY"
 CHAMPION = "CHAMPION"
@@ -104,6 +107,31 @@ class CanaryRouter:
             "prediction": predicciones.values,
             "timestamp": _timestamp(),
         })
+
+    def log_routing_decisions(self, predictions_df: pd.DataFrame, db_path=DEFAULT_LOG_DB_PATH) -> int:
+        """Log auditable, no un estado que se upsertea -- mismo criterio que
+        `log_dual_predictions` en la técnica 16: cada corrida agrega filas
+        nuevas a `canary_routing_log`, aunque el mismo client_id ya haya
+        sido puntuado antes. Es lo que `19-canary-monitoring/` lee despues
+        para evaluar la salud de la cohorte CANARY reciente."""
+        db_path = Path(db_path)
+        if str(db_path) != ":memory:":
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        con = duckdb.connect(str(db_path))
+        try:
+            con.register("_staging", predictions_df)
+            existe = con.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [LOG_TABLE_NAME],
+            ).fetchone()[0] > 0
+            if not existe:
+                con.execute(f"CREATE TABLE {LOG_TABLE_NAME} AS SELECT * FROM _staging WHERE 1=0")
+            con.execute(f"INSERT INTO {LOG_TABLE_NAME} SELECT * FROM _staging")
+        finally:
+            con.unregister("_staging")
+            con.close()
+
+        return len(predictions_df)
 
     def trigger_rollback(self, config_path, reason: str) -> dict:
         """Emergencia: el trafico canario baja a 0% de inmediato, sin
