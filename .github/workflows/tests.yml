@@ -27,6 +27,7 @@ jobs:
           - 12-drift-monitoring-psi-ks
           - 13-feature-store-duckdb
           - 14-shadow-model-training
+          - 15-model-promotion
     defaults:
       run:
         working-directory: ${{ matrix.folder }}

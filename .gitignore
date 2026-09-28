@@ -44,3 +44,7 @@ Thumbs.db
 # Salida de 14-shadow-model-training: el .pkl del modelo sombra y sus metricas,
 # se reconstruyen reentrenando contra el feature store de la tecnica 13.
 14-shadow-model-training/outputs/
+
+# Salida de 15-model-promotion: la decision de promocion se reconstruye
+# reevaluando las metricas mas recientes de la tecnica 14.
+15-model-promotion/outputs/
