@@ -31,6 +31,7 @@ jobs:
           - 16-shadow-deployment
           - 17-challenger-analysis
           - 18-canary-deployment
+          - 19-canary-monitoring
     defaults:
       run:
         working-directory: ${{ matrix.folder }}

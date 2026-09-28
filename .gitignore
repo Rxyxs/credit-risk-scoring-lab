@@ -61,3 +61,7 @@ Thumbs.db
 # Salida de 18-canary-deployment: la config canaria, el modelo/CSV de demo
 # del Champion (no un artefacto real de produccion, ver run_canary.py).
 18-canary-deployment/outputs/
+
+# Salida de 19-canary-monitoring: el reporte de salud se reconstruye
+# reevaluando el log de ruteo canario mas reciente de la tecnica 18.
+19-canary-monitoring/outputs/
