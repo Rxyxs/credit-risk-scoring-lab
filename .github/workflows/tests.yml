@@ -30,6 +30,7 @@ jobs:
           - 15-model-promotion
           - 16-shadow-deployment
           - 17-challenger-analysis
+          - 18-canary-deployment
     defaults:
       run:
         working-directory: ${{ matrix.folder }}
