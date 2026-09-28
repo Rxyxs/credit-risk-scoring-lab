@@ -28,6 +28,7 @@ jobs:
           - 13-feature-store-duckdb
           - 14-shadow-model-training
           - 15-model-promotion
+          - 16-shadow-deployment
     defaults:
       run:
         working-directory: ${{ matrix.folder }}

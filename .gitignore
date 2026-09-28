@@ -48,3 +48,8 @@ Thumbs.db
 # Salida de 15-model-promotion: la decision de promocion se reconstruye
 # reevaluando las metricas mas recientes de la tecnica 14.
 15-model-promotion/outputs/
+
+# Salida de 16-shadow-deployment: el registro del modelo sombra activo, el
+# .duckdb del log de inferencia dual, y el modelo/CSV de demo del Champion
+# (no un artefacto real de produccion, ver run_shadow_serving.py).
+16-shadow-deployment/outputs/
