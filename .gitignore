@@ -53,3 +53,7 @@ Thumbs.db
 # .duckdb del log de inferencia dual, y el modelo/CSV de demo del Champion
 # (no un artefacto real de produccion, ver run_shadow_serving.py).
 16-shadow-deployment/outputs/
+
+# Salida de 17-challenger-analysis: el reporte de divergencia se reconstruye
+# reanalizando los logs de inferencia dual de la tecnica 16.
+17-challenger-analysis/outputs/

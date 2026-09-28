@@ -29,6 +29,7 @@ jobs:
           - 14-shadow-model-training
           - 15-model-promotion
           - 16-shadow-deployment
+          - 17-challenger-analysis
     defaults:
       run:
         working-directory: ${{ matrix.folder }}
