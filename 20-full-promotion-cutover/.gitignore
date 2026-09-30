@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Estado de laboratorio y artefactos generados (se regeneran con run_cutover.py
+# o con los fixtures de las pruebas): modelos, config canaria, reportes de
+# salud, manifiestos de cutover y la base DuckDB.
+models/
+canary_monitoring_outputs/
+outputs/
+*.duckdb
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
