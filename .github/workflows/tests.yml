@@ -33,6 +33,7 @@ jobs:
           - 18-canary-deployment
           - 19-canary-monitoring
           - 20-full-promotion-cutover
+          - 21-post-cutover-telemetry
     defaults:
       run:
         working-directory: ${{ matrix.folder }}

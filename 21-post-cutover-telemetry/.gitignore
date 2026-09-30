@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Artefactos generados (se regeneran con run_telemetry.py o los fixtures de
+# las pruebas): la base DuckDB propia de esta tecnica y los reportes.
+outputs/
+*.duckdb
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
