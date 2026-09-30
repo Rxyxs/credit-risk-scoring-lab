@@ -35,6 +35,7 @@ jobs:
           - 20-full-promotion-cutover
           - 21-post-cutover-telemetry
           - 22-automated-retraining-trigger
+          - 23-automated-retraining-pipeline
     defaults:
       run:
         working-directory: ${{ matrix.folder }}

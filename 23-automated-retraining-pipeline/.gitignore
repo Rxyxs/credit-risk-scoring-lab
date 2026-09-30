@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Artefactos generados (se regeneran con run_orchestrator.py o los
+# fixtures de las pruebas): el nuevo candidato Challenger, sus metricas,
+# el estado local de disparadores procesados, y cualquier base DuckDB
+# local usada para probar sin tocar la base central.
+outputs/
+*.duckdb
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
