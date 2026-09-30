@@ -177,6 +177,12 @@ distribucion, solo hace que el dano sea medible.
   la banda de score compra su menor tasa mala rechazando a muchos clientes
   buenos. Los dos numeros estan en la tabla; quedarse solo con la tasa mala
   daria vuelta la conclusion.
+- **El split train/calibracion/test es aleatorio estratificado, no
+  cronologico** -- los solicitantes aca no tienen fecha de originacion. El
+  stress test de covariate shift de arriba es lo mas parecido a un chequeo
+  out-of-time que corre este proyecto, y esta presentado exactamente como
+  lo que es: una poblacion deliberadamente desplazada, no un periodo futuro
+  genuinamente separado.
 
 ## Arquitectura
 

@@ -110,6 +110,11 @@ retador detras del mismo endpoint.
 Python puro — y entrega el mismo numero que el scorecard de R hasta 4,79e-11,
 que es la parte que hace la velocidad utilizable y no solo llamativa.*
 
+El motor tambien compila y corre en Linux/GCC — CI lo compila con `make` y
+corre una suite de 1020 aserciones de correctitud
+(`c/tests/test_score_engine.c`) en cada push, aparte del build con MSVC
+medido arriba (ver [Integracion continua](#integracion-continua)).
+
 **Que salio.** El scorecard llego a Gini 0,466 y KS 0,358; el mejor challenger
 de ML llego a Gini 0,461. **Gano el modelo interpretable**, y el proyecto lo
 dice en vez de reformular la comparacion. La seccion de reject inference
@@ -645,8 +650,14 @@ verificacion independiente:
 
 ### Estandar de testing
 
-Las tecnicas 03-11 traen **325 tests**; la tecnica 01 reporta 29 en su propio
-README. Apuntan a lo que falla *en silencio* y no con un error: una identidad
+Las tecnicas 03-11 traen **325 tests**; la tecnica 01 reporta 23 aprobados
+(mas 10 que se saltan sin un motor en C compilado localmente) en su propio
+README; la tecnica 02 suma **8 mas** — sus tests de la loss/entrenamiento del
+MLP y de la persistencia de metricas en DuckDB
+(`02-bidirectional-r-python-interop/tests/`), que no necesitan runtime de R
+porque ninguno de los dos importa `rpy2` al cargar el modulo. El puente
+R-Python en si se ejercita aparte, en el job `testthat` de abajo.
+Apuntan a lo que falla *en silencio* y no con un error: una identidad
 analitica que la implementacion tiene que reproducir, un ejemplo calculado a
 mano, una propiedad que debe cumplirse (cobertura, monotonia, composicion), o un
 efecto plantado que un diagnostico esta obligado a detectar — y, igual de
@@ -663,6 +674,46 @@ importante, casos donde un diagnostico debe quedarse callado.
 | 09 | 64 | El probit bivariado recupera rho a menos de 0,08 con instrumento de exclusion, y tiene que fallar por mas de 0,15 sin el |
 | 10 | 41 | El cuantil cerrado de Vasicek calza con una simulacion Monte Carlo independiente de 50.000 deudores a menos de 0,01 |
 | 11 | 26 | FedAvg con un cliente iguala al descenso de gradiente centralizado a `1e-9`; con E=1 y clientes de tamano desigual, a `1e-9` contra el gradiente del pool |
+
+### Integracion continua
+
+Cada push y pull request a `main` corre **14 jobs independientes en
+`ubuntu-latest`**, un solo workflow, tres lenguajes —
+[`.github/workflows/tests.yml`](.github/workflows/tests.yml):
+
+| Lenguaje | Jobs | Que corre cada job | Ultima corrida verde |
+|---|---|---|---|
+| Python | 11 (una por tecnica: 01-11) | `pytest tests/ -q` | **356 aprobados**, 10 saltados¹ |
+| R (`testthat`) | 2 (tecnicas 01 y 02) | Binning WOE/IV, escalamiento PDO del scorecard (01); simulacion del panel de LGD empirica y calibracion Beta/Logit (02) | **50 aserciones aprobadas** |
+| C (`gcc`, `make test`) | 1 (`score_engine.c` de la tecnica 01) | Correctitud numerica exacta, manejo seguro de NULL/fuera de rango, consistencia entre lote y fila individual | **1020 aserciones aprobadas**² |
+
+¹ Los 10 saltados son los tests del puente ctypes de la tecnica 01, que
+necesitan el motor en C compilado localmente primero (`build.ps1` en
+Windows, `make lib` en Linux) — CI no versiona un binario, asi que los
+salta por diseno en vez de simular un resultado.
+² Incluye un loop de 1000 iteraciones que verifica que llamadas repetidas
+devuelven un resultado identico bit a bit (es decir, sin estado mutable
+oculto) — eso es una propiedad verificada 1000 veces, no 1000 casos de
+prueba independientes; las otras 20 aserciones son la cobertura real de
+escenarios (punteros NULL, bins fuera de rango, arreglos de features
+vacios, y la consistencia cruzada entre lote y fila individual).
+
+Estas tres cifras son unidades distintas — funciones de test de pytest,
+expectativas de `testthat`, y chequeos crudos tipo `assert` en C — y se
+mantienen separadas a proposito en vez de sumarse en un solo "numero de
+tests", que mezclaria cosas que no son comparables.
+
+La tecnica 02 tiene sus propios tests de Python
+(`tests/test_credit_scoring_mlp.py`, `tests/test_metrics_store.py`) pero no
+forma parte de la matriz de Python de arriba — corren localmente, no desde
+CI, a diferencia de su suite de R.
+
+El benchmark standalone en C (`c/bench_main.c`, sin overhead de ctypes) midio
+**142.8M filas/seg** compilado con GCC 10.3.0 sobre el mismo codigo que CI
+ahora testea — dentro del rango de 133-154M filas/seg ya documentado para el
+build con MSVC en el README de la tecnica 01, es decir, los chequeos de
+seguridad NULL/rango agregados para la suite en C no cambiaron de forma
+medible el hot path.
 
 ## Por que los datos son sinteticos
 
@@ -789,6 +840,23 @@ credit-risk-scoring-lab/
 | Serving y almacenamiento | FastAPI, DuckDB (01) |
 | Interoperabilidad | `reticulate` (R → Python), `rpy2` (Python → R), `ctypes` (Python → C) |
 | Graficos | Matplotlib (estaticos, versionados), Plotly (interactivos, regenerados localmente) |
+
+## Checklist de produccion
+
+Nota de cierre para la segunda semana de trabajo en este laboratorio: lo
+que esta realmente verificado a este commit, no lo que se aspira a tener.
+Cada fila enlaza a donde se chequea, siguiendo la misma regla que el resto
+de este README -- un check aca significa que hay un comando o un job de
+CI que lo demuestra, no una afirmacion que descansa solo en esta tabla.
+
+| | Item | Evidencia |
+|---|---|---|
+| ✅ | CI poliglota automatizado (14/14 jobs en GitHub Actions: Python + R + C) | [Integracion continua](#integracion-continua); ultima corrida verde enlazada desde el badge arriba de esta pagina |
+| ✅ | Cobertura de tests (356 pytest, 50 testthat, 1020 aserciones C) | Misma seccion -- tres unidades distintas, mantenidas separadas en vez de sumarse en un numero unico enganoso |
+| ✅ | Motor en C desacoplado (~142,8M filas/seg, chequeos defensivos NaN/rango) | [Seccion 6 de la tecnica 01](01-polyglot-scorecard-r-python-c/README.es.md#6-motor-en-c--correctitud-y-desempeno); `c/tests/test_score_engine.c` ejercita directamente los caminos NULL/fuera-de-rango |
+| ✅ | Scorecard WOE + regresion Beta / LGD en R (`mgcv`/`AER` validados) | [Tecnica 01](#01--scorecard-poliglota-r--python--c) (WOE/PDO) y [tecnica 02](#02--interoperabilidad-bidireccional-rpython) (LGD Tobit/GAM); ambos paquetes instalados y ejercitados por el job de CI de `testthat`, no solo importados |
+| ✅ | 11 tecnicas de riesgo operacionales, chequeadas por fuga de datos temporal | Se reviso la metodologia de split de cada tecnica esta semana (ver la nota de validacion en cada README): 9 son simulaciones transversales sin dimension calendario, donde un split aleatorio estratificado es la eleccion *correcta*, no un atajo; la tecnica 06 corre un split out-of-time genuino por vintage; la tecnica 03 queda marcada como el vacio honesto -- tiene cohortes vintage que no usa para OOT, a diferencia de la 06 |
+| ✅ | Documentacion bilingue (EN/ES) con diagramas de arquitectura e interoperabilidad | Cada tecnica trae su par `README.md`/`README.es.md`; diagramas Mermaid en este README y en los README propios de las tecnicas 01/02; la nota de layout de memoria de `ctypes` en la tecnica 01 y los puentes `reticulate`/`rpy2` en la tecnica 02 |
 
 ## Autor
 

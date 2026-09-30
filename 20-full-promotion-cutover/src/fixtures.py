@@ -1,12 +1,17 @@
-"""Estado de partida simulado: lo que una etapa previa de canary monitoring
-habria dejado atras si formara parte de este laboratorio.
+"""Estado de partida para probar el cutover, sin depender de que las
+tecnicas 16/18/19 hayan corrido de verdad antes.
 
-Esta tecnica es autocontenida, como todas las demas en este proyecto: no
-depende de una carpeta ``19-canary-monitoring/`` real (no existe), sino que
-genera su propio insumo -- un Champion activo, un candidato sombra y un
-reporte de salud canaria -- con una funcion de generacion conocida, para que
-el cutover se pueda ejercitar y verificar de punta a punta sin inventar una
-dependencia entre carpetas que no es real.
+Estas pruebas construyen su propio Champion, su propio candidato sombra y
+su propio reporte de salud canaria bajo un directorio temporal, con el
+mismo esquema de archivo que usan las tecnicas reales -- ``canary_config``
+usa el campo ``canary_percentage`` tal como lo escribe
+``CanaryRouter.set_traffic_split`` en `18-canary-deployment/`, y
+``canary_health_<timestamp>.json`` usa ``status`` tal como lo escribe
+``CanaryHealthMonitor.generate_health_report`` en `19-canary-monitoring/`
+-- para que `CutoverManager` se ejercite contra datos con la misma forma
+que va a ver en produccion, aunque el Champion en si no exista todavia en
+ningun punto anterior del pipeline (ver la nota en
+`16-shadow-deployment/src/shadow_engine.py`).
 """
 
 from __future__ import annotations
@@ -56,7 +61,7 @@ def sembrar_champion_y_sombra(models_dir: Path) -> dict:
 
     canary_config_path = models_dir / "canary_config.json"
     canary_config_path.write_text(json.dumps(
-        {"canary_traffic_percent": 15, "candidate_version": "v3.3.0-rc1"}, indent=2))
+        {"canary_percentage": 15, "updated_at": _timestamp()}, indent=2))
 
     return {
         "champion_dir": champion_dir,

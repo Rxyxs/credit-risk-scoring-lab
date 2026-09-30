@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-rastro%20de%20auditoria-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org/)
-[![Tests](https://img.shields.io/badge/tests-8%20passing-brightgreen?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/tests-10%20passing-brightgreen?logo=pytest&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](../LICENSE)
 
 </div>
@@ -43,7 +43,11 @@ alcanzable por accidente:
 - **`verify_health_before_cutover`** es una puerta pura. Lee un reporte
   `canary_health_<timestamp>.json` y retorna `True` solo si
   `status == "HEALTHY"`. No toca nada más — ni el sistema de archivos, ni
-  la base de datos — asi que llamarlo especulativamente siempre es seguro.
+  la base de datos — asi que llamarlo especulativamente siempre es
+  seguro, e ignora todos los campos que no necesita: el reporte real de
+  `19-canary-monitoring/` trae `null_rate`, `mean_score_diff`,
+  `high_risk_proportion` y mas, ninguno de los cuales le importa a la
+  puerta.
 - **`execute_cutover`** hace la promoción real, en un orden elegido para
   que una caida a mitad de camino deje un estado reconstruible en vez de
   una pérdida silenciosa: archivar el Champion existente (si hay uno) →
@@ -62,40 +66,58 @@ reporte, o no hay un modelo sombra activo para promover, registra por qué
 y termina con código `0` — "no habia nada que conmutar" es un resultado
 esperado, no una falla que requiera despertar a alguien.
 
-Esta técnica es autocontenida, como todas las demás en este laboratorio:
-no existe una carpeta `19-canary-monitoring/` de la cual depender, asi que
-[`src/fixtures.py`](src/fixtures.py) genera ella misma el estado previo —
-un Champion sembrado, un modelo candidato sombra, y un reporte
-`canary_health` en cualquiera de los dos estados — para que la lógica del
-cutover se pueda ejercitar y verificar de punta a punta sin inventar una
-dependencia hacia técnicas que no son parte de este proyecto.
+Esta es la duodecima técnica de la cadena mlops de este laboratorio
+(`12-drift-monitoring-psi-ks/` hasta `19-canary-monitoring/`), y — como
+cada etapa de esa cadena — se integra por archivo, no por import: el
+reporte de salud viene de `../19-canary-monitoring/outputs/reports/`, el
+candidato sombra de `../16-shadow-deployment/outputs/registry/`, y
+`canary_config.json` es exactamente el archivo que `../18-canary-deployment/`
+lee y escribe. Ninguna de esas técnicas produjo nunca un `champion_model.pkl`
+propio — `16-shadow-deployment` y `18-canary-deployment` lo señalan
+explicitamente y reciben "el modelo que ya está sirviendo" como parametro
+en vez de asumir donde vive — asi que esta es la primera etapa de la
+cadena que persiste un artefacto de Champion, y de aca en mas es la fuente
+de verdad de "que modelo esta sirviendo".
 
 ## Resultados de una corrida real
+
+Sembrando estado real previo — un candidato registrado a traves del CLI
+real de `16-shadow-deployment`, enrutado por el router canario real de
+`18-canary-deployment`, evaluado por el monitor de salud real de
+`19-canary-monitoring` — y luego:
 
 ```bash
 python run_cutover.py
 ```
 
-contra un estado `HEALTHY` recien sembrado produce:
+produce, en el primer cutover que esta cadena corrio jamas (todavia no
+existia ningun Champion):
 
 ```json
 {
-  "event_id": "d9a6bc24-050a-4296-9808-d1e3871d58d8",
+  "event_id": "dfd5b490-7d73-4a90-aad8-7c8b2062f6be",
   "event_type": "FULL_CUTOVER",
-  "previous_champion": "champion_archive_20260930T013708757020Z.pkl",
+  "previous_champion": null,
   "new_champion": "champion_model.pkl",
-  "promoted_at": "2026-09-30T01:37:08.757020+00:00",
-  "champion_path": ".../models/champion/champion_model.pkl",
-  "archived_path": ".../models/archive/champion_archive_20260930T013708757020Z.pkl",
-  "shadow_model_path": ".../models/shadow/active_shadow_model.pkl",
-  "canary_config_path": ".../models/canary_config.json",
-  "db_path": ".../lab_lifecycle.duckdb"
+  "promoted_at": "2026-09-30T01:46:15.988213+00:00",
+  "champion_path": "outputs/models/champion/champion_model.pkl",
+  "archived_path": null,
+  "shadow_model_path": "../16-shadow-deployment/outputs/registry/active_shadow_model.pkl",
+  "canary_config_path": "../18-canary-deployment/outputs/canary_config.json",
+  "db_path": "outputs/lab_lifecycle.duckdb"
 }
 ```
 
-y la fila correspondiente llega a `model_lifecycle_events`;
-`canary_config.json` queda con `canary_traffic_percent: 0`. Corriendolo de
-nuevo contra un reporte `ROLLBACK_TRIGGERED`:
+y `../18-canary-deployment/outputs/canary_config.json` vuelve como
+`{"canary_percentage": 0, "updated_at": "2026-09-30T01:46:15+00:00"}` — el
+archivo exacto que el router canario lee antes de decidir como repartir
+el trafico. Abriendo el canary de nuevo a 30% y corriendo un segundo
+cutover contra un segundo reporte `HEALTHY` real muestra la ruta de
+archivado funcionando de verdad, no solo en una prueba:
+`previous_champion` vuelve como
+`champion_archive_20260930T014633176211Z.pkl`, y ese archivo existe,
+idéntico byte a byte a lo que un momento antes era el Champion. Apuntando
+`--health-report-path` a un reporte `ROLLBACK_TRIGGERED` en cambio:
 
 ```
 WARNING: Estado canario 'ROLLBACK_TRIGGERED' (se esperaba HEALTHY) en ...; cutover abortado.
@@ -106,6 +128,18 @@ termina con código `0`, y el Champion en disco queda idéntico byte a byte.
 
 ## Hallazgos honestos
 
+- **El nombre de campo que elegi primero para el split canario estaba mal,
+  y solo lo descubri corriendo de verdad las tecnicas vecinas.** La
+  primera version de esta tecnica escribia `canary_traffic_percent` en
+  `canary_config.json` — un nombre que inventé porque construí esta
+  técnica asumiendo que `18-canary-deployment` y `19-canary-monitoring`
+  todavia no existian en este laboratorio. Si existen: ambas usan de
+  verdad `canary_percentage`. Escribir el campo con el nombre equivocado
+  no habria roto ninguna prueba de esta carpeta — habria producido en
+  silencio un archivo de config que el propio CLI de la tecnica 18 no
+  podria leer correctamente, descubierto recien en producción. Corregido
+  una vez que se verificaron las tecnicas vecinas reales, en vez de
+  asumirlas.
 - **Los timestamps con resolución de segundos colisionan en silencio.** La
   primera version de `execute_cutover` nombraba los archivos
   `champion_archive_<timestamp>.pkl` con un timestamp de precisión de
@@ -117,6 +151,14 @@ termina con código `0`, y el Champion en disco queda idéntico byte a byte.
   `test_cutover_repetido_archiva_cada_champion_anterior_por_separado`, que
   verifica que existan dos archivos distintos — fallaba con un solo
   archivo antes de la correccion.
+- **Un 0% de cutover y un 0% de rollback se ven identicos si no se tiene
+  cuidado, y significan lo opuesto.** `18-canary-deployment` escribe
+  `{"rollback": true, "rollback_reason": ...}` junto a `canary_percentage:
+  0` cuando fuerza un rollback de emergencia. Un cutover que llega a 0% es
+  la situación opuesta — el candidato ganó, no perdió — asi que
+  `execute_cutover` reemplaza el archivo de config por completo en vez de
+  fusionarlo, para que un `rollback: true` de un incidente pasado nunca
+  sobreviva a una promoción exitosa.
 - **La verificacion de salud y la ejecucion estan separadas a proposito, y
   eso cuesta un llamado extra en cada invocador.** Seria marginalmente mas
   conveniente que `execute_cutover` verificara la salud ella misma.
@@ -128,12 +170,14 @@ termina con código `0`, y el Champion en disco queda idéntico byte a byte.
 
 ```mermaid
 flowchart TB
-    A[fixtures.py<br/>siembra Champion + sombra + canary_health] --> B{verify_health_before_cutover}
+    H[19-canary-monitoring<br/>outputs/reports/canary_health_*.json] --> B{verify_health_before_cutover}
+    S[16-shadow-deployment<br/>outputs/registry/active_shadow_model.pkl] --> C
+    K[18-canary-deployment<br/>outputs/canary_config.json] --> C
     B -- no HEALTHY / falta --> X[abortar, salida 0<br/>Champion intacto]
     B -- HEALTHY --> C[execute_cutover]
     C --> C1[archivar Champion actual]
     C1 --> C2[copiar sombra a champion_model.pkl]
-    C2 --> C3[canary_traffic_percent -> 0]
+    C2 --> C3[canary_percentage -> 0]
     C3 --> C4[insertar fila: model_lifecycle_events]
     C4 --> D[generate_cutover_manifest]
 ```
@@ -141,8 +185,8 @@ flowchart TB
 | Módulo | Qué hace |
 |---|---|
 | [`src/cutover_manager.py`](src/cutover_manager.py) | `CutoverManager`: la puerta de salud, la secuencia archivar-promover-registrar, y el escritor del manifiesto. |
-| [`src/fixtures.py`](src/fixtures.py) | Estado sembrado autocontenido: un Champion, un candidato sombra, una config canaria, y un reporte `canary_health` en cualquiera de los dos estados. |
-| [`run_cutover.py`](run_cutover.py) | El CLI: resuelve el reporte de salud mas reciente, verifica que haya un modelo sombra activo, y corre el cutover o aborta limpiamente. |
+| [`src/fixtures.py`](src/fixtures.py) | Estado sembrado solo para pruebas (un Champion, un candidato sombra, una config canaria, un reporte `canary_health`) construido bajo `tmp_path`, con el mismo esquema de archivo que usan las tecnicas reales previas. |
+| [`run_cutover.py`](run_cutover.py) | El CLI: resuelve el reporte de salud real mas reciente de `19-canary-monitoring/`, el modelo sombra activo de `16-shadow-deployment/`, y la config canaria de `18-canary-deployment/`, y corre el cutover o aborta limpiamente. |
 
 ## Cómo correrlo
 
@@ -151,41 +195,43 @@ python -m venv venv
 venv\Scripts\activate            # Windows;  source venv/bin/activate en Linux/macOS
 pip install -r requirements.txt
 
-python run_cutover.py            # aborta limpiamente: aun no hay estado sembrado
-pytest -v                        # 8 tests
+python run_cutover.py            # aborta limpiamente si 16/18/19 aun no produjeron estado real
+pytest -v                        # 10 tests
 ```
 
-Para ver una promoción real, primero siembra un estado `HEALTHY`:
-
-```bash
-python -c "from src.fixtures import sembrar_champion_y_sombra, escribir_reporte_salud; \
-sembrar_champion_y_sombra('models'); escribir_reporte_salud('canary_monitoring_outputs', 'HEALTHY')"
-python run_cutover.py
-```
+Un cutover real necesita que `16-shadow-deployment`, `18-canary-deployment`
+y `19-canary-monitoring` hayan producido de verdad sus artefactos primero
+(sus propios README muestran como); `pytest -v` en esta carpeta no
+necesita nada de eso — construye su propio estado aislado por prueba con
+[`src/fixtures.py`](src/fixtures.py).
 
 ## Tests
 
-8 tests (`pytest -v`), cada uno construyendo su propio estado de
+10 tests (`pytest -v`), cada uno construyendo su propio estado de
 laboratorio aislado bajo `tmp_path` en vez de compartir fixtures entre
 pruebas: un cutover `HEALTHY` exitoso (el candidato se vuelve Champion, el
 Champion anterior queda archivado byte a byte); la fila exacta en
 `model_lifecycle_events` dentro de DuckDB; `ROLLBACK_TRIGGERED` y un
 reporte faltante abortando ambos con el Champion intacto; la config
-canaria volviendo a `0%` preservando sus demas campos; el manifiesto
-coincidiendo exactamente con el resultado ejecutado; un `RuntimeError`
-claro cuando se pide el manifiesto antes de correr un cutover; y dos
-cutover en la misma prueba archivando dos archivos distintos en vez de que
-uno sobrescriba al otro.
+canaria volviendo a `0%` con el campo real `canary_percentage`; un
+`rollback: true` de un incidente previo que no sobrevive a un cutover
+exitoso; el manifiesto coincidiendo exactamente con el resultado
+ejecutado; un `RuntimeError` claro cuando se pide el manifiesto antes de
+correr un cutover; dos cutover en la misma prueba archivando dos archivos
+distintos en vez de que uno sobrescriba al otro; y la puerta de salud
+ignorando los campos extra (`null_rate`, `mean_score_diff`, ...) que trae
+el reporte real de `19-canary-monitoring` junto a `status`.
 
 ## Alcance
 
-Autocontenida por diseño: `src/fixtures.py` simula lo que una etapa de
-shadow-deploy y canary-monitoring habria producido, ya que esas etapas no
-estan implementadas como técnicas separadas en este laboratorio.
-`CutoverManager` en si no depende de cómo se produjo ese estado previo —
-solo necesita un reporte de salud, un archivo de modelo sombra, y una
-config canaria, asi que apuntarlo a artefactos reales en vez de a los
-fixtures es cuestión de cambiar las rutas, no la lógica.
+Verificada contra las tecnicas vecinas reales, no solo contra sus propios
+fixtures: los resultados de arriba vienen de correr de verdad
+`16-shadow-deployment/run_shadow_serving.py`,
+`18-canary-deployment/run_canary.py` y
+`19-canary-monitoring/run_health_check.py` en secuencia, y luego apuntar
+el CLI de esta tecnica a sus archivos de salida reales. `src/fixtures.py`
+existe solo para la suite de pruebas, asi que `pytest` no requiere que el
+resto de la cadena haya corrido antes.
 
 ## Autor
 

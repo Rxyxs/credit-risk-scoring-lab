@@ -142,6 +142,11 @@ accuracy" does not work under DP.
   100,000 rows the same ε would cost far less, because the noise is added to a
   sum over a much larger batch while the signal grows with it. The 18.4% AUC
   price tag belongs to this regime, and the regime is stated in the table.
+- **The train/holdout split is stratified random, not chronological.**
+  Rows are generated i.i.d. with no origination date, so there's nothing an
+  out-of-time split would be protecting against here — and the canary
+  design (pristine profiles injected and tracked by membership, not by
+  time) is the actual leakage check this project runs.
 
 ## Architecture
 

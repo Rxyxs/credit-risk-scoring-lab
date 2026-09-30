@@ -19,6 +19,9 @@ env/
 *.lib
 *.exp
 *.pdb
+*.o
+*.so
+c/build/
 
 # Datos y artefactos generados (se regeneran con run_pipeline.py)
 data/raw/*.csv
@@ -26,6 +29,7 @@ data/processed/*.csv
 outputs/models/*.joblib
 outputs/models/*.dll
 outputs/models/*.exe
+outputs/models/score_bench
 outputs/models/*.pt
 outputs/models/*.json
 outputs/reports/*.json

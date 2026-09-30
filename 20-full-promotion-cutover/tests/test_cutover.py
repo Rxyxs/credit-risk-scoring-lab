@@ -116,7 +116,7 @@ def test_reporte_de_salud_faltante_aborta_sin_alterar_el_champion_activo(laborat
 
 def test_config_canaria_vuelve_a_cero_por_ciento_tras_un_cutover_exitoso(laboratorio):
     config_previo = json.loads(laboratorio["canary_config_path"].read_text())
-    assert config_previo["canary_traffic_percent"] == 15
+    assert config_previo["canary_percentage"] == 15
 
     reporte = escribir_reporte_salud(laboratorio["canary_outputs_dir"], "HEALTHY")
     manager = CutoverManager()
@@ -130,9 +130,11 @@ def test_config_canaria_vuelve_a_cero_por_ciento_tras_un_cutover_exitoso(laborat
     )
 
     config_posterior = json.loads(laboratorio["canary_config_path"].read_text())
-    assert config_posterior["canary_traffic_percent"] == 0
-    # El resto de la config (version del candidato) no se pierde en la reescritura.
-    assert config_posterior["candidate_version"] == config_previo["candidate_version"]
+    assert config_posterior["canary_percentage"] == 0
+    # Reescritura completa, con el mismo esquema que `set_traffic_split`/
+    # `trigger_rollback` (tecnica 18): un `rollback` de una corrida previa
+    # no debe sobrevivir a un cutover exitoso.
+    assert "rollback" not in config_posterior
 
 
 def test_manifiesto_de_cutover_refleja_el_resultado_ejecutado(laboratorio, tmp_path):
@@ -159,6 +161,59 @@ def test_generar_manifiesto_sin_cutover_previo_falla_explicitamente(tmp_path):
     manager = CutoverManager()
     with pytest.raises(RuntimeError):
         manager.generate_cutover_manifest(tmp_path / "outputs")
+
+
+def test_cutover_sobrescribe_un_rollback_previo_sin_dejar_rastro(laboratorio):
+    """Si el canary_config.json que dejo la tecnica 19 viene de un rollback
+    automatico (`rollback: True`, `rollback_reason: ...`), un cutover
+    exitoso posterior no debe arrastrar esos campos: el 0% ahora es porque
+    el candidato paso a ser el Champion completo, no porque algo fallo."""
+    laboratorio["canary_config_path"].write_text(json.dumps({
+        "canary_percentage": 0,
+        "updated_at": "2026-01-01T00:00:00+00:00",
+        "rollback": True,
+        "rollback_reason": "null_rate=0.0500 supera el limite 0.0100",
+    }, indent=2))
+
+    reporte = escribir_reporte_salud(laboratorio["canary_outputs_dir"], "HEALTHY")
+    manager = CutoverManager()
+    manager.verify_health_before_cutover(reporte)
+    manager.execute_cutover(
+        shadow_model_path=laboratorio["shadow_path"],
+        champion_dir=laboratorio["champion_dir"],
+        archive_dir=laboratorio["archive_dir"],
+        canary_config_path=laboratorio["canary_config_path"],
+        db_path=laboratorio["db_path"],
+    )
+
+    config_posterior = json.loads(laboratorio["canary_config_path"].read_text())
+    assert config_posterior == {
+        "canary_percentage": 0,
+        "updated_at": config_posterior["updated_at"],
+    }
+
+
+def test_verificacion_de_salud_ignora_campos_extra_del_reporte_real(laboratorio):
+    """El reporte real de la tecnica 19 trae mas campos que solo `status`
+    (null_rate, mean_score_diff, high_risk_proportion, n_canary,
+    n_champion, violated_threshold, reason, generated_at) -- la puerta solo
+    debe mirar `status`, sin que los demas campos le importen."""
+    reporte_path = laboratorio["canary_outputs_dir"] / "canary_health_real.json"
+    reporte_path.parent.mkdir(parents=True, exist_ok=True)
+    reporte_path.write_text(json.dumps({
+        "null_rate": 0.0021,
+        "mean_score_diff": 0.031,
+        "high_risk_proportion": 0.084,
+        "n_canary": 412,
+        "n_champion": 1988,
+        "status": "HEALTHY",
+        "violated_threshold": None,
+        "reason": None,
+        "generated_at": "2026-01-01T00:00:00+00:00",
+    }, indent=2))
+
+    manager = CutoverManager()
+    assert manager.verify_health_before_cutover(reporte_path) is True
 
 
 def test_cutover_repetido_archiva_cada_champion_anterior_por_separado(laboratorio):

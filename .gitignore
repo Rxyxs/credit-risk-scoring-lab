@@ -3,9 +3,65 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# Configuración local / secretos
+.env
+.env.local
+.env.*
+!.env.example
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Binarios compilados (01's score_engine.c builds libscore_engine.so/.dylib/.dll
+# and score_bench into outputs/models/, which is otherwise NOT globally
+# ignored since committed figures live under outputs/ too)
+*.so
+*.dylib
+*.dll
+*.exe
+*.o
+*.obj
+
 # Interactive Plotly dashboards: each embeds the full Plotly.js bundle inline
 # (~4-5MB per file), which was making GitHub misdetect the repo's primary
 # language as HTML instead of the real polyglot code. Regenerate locally from
 # each module's source script.
 **/output/interactive/
 **/outputs/interactive/
+
+# Salida del demo de 12-drift-monitoring-psi-ks (datos sinteticos, se regenera con
+# run_pipeline.py): reportes de drift, snapshots de reentrenamiento y sus manifiestos.
+12-drift-monitoring-psi-ks/drift_report.json
+12-drift-monitoring-psi-ks/outputs/
+
+# Salida de 13-feature-store-duckdb: el archivo .duckdb del feature store offline,
+# se reconstruye ingiriendo de nuevo los manifiestos de la tecnica 12.
+13-feature-store-duckdb/outputs/
+
+# Salida de 14-shadow-model-training: el .pkl del modelo sombra y sus metricas,
+# se reconstruyen reentrenando contra el feature store de la tecnica 13.
+14-shadow-model-training/outputs/
+
+# Salida de 15-model-promotion: la decision de promocion se reconstruye
+# reevaluando las metricas mas recientes de la tecnica 14.
+15-model-promotion/outputs/
+
+# Salida de 16-shadow-deployment: el registro del modelo sombra activo, el
+# .duckdb del log de inferencia dual, y el modelo/CSV de demo del Champion
+# (no un artefacto real de produccion, ver run_shadow_serving.py).
+16-shadow-deployment/outputs/
+
+# Salida de 17-challenger-analysis: el reporte de divergencia se reconstruye
+# reanalizando los logs de inferencia dual de la tecnica 16.
+17-challenger-analysis/outputs/
+
+# Salida de 18-canary-deployment: la config canaria, el modelo/CSV de demo
+# del Champion (no un artefacto real de produccion, ver run_canary.py).
+18-canary-deployment/outputs/
+
+# Salida de 19-canary-monitoring: el reporte de salud se reconstruye
+# reevaluando el log de ruteo canario mas reciente de la tecnica 18.
+19-canary-monitoring/outputs/

@@ -165,6 +165,10 @@ by itself violate.
   itself worth stating: the cost of these mitigations landed on *profit* (up
   to −6.1%) and on approval volume distribution, not on the model's ability to
   rank risk.
+- **The split is stratified random.** Applicants are generated i.i.d. with
+  no origination date, so there's no calendar dimension for a chronological
+  split to protect — and no reason the fairness metrics above would differ
+  under an out-of-time split versus this one.
 
 ## Architecture
 

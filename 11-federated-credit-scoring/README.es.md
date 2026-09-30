@@ -165,6 +165,11 @@ ranking.*
   ejemplo construida en el proyecto 08 es la capa natural siguiente; este
   proyecto mide la brecha que la privacidad diferencial tendria que
   cerrar, en vez de cerrarla.
+- **El split de cada banco es aleatorio estratificado, no cronologico.**
+  Los solicitantes se generan i.i.d. por banco sin fecha de originacion,
+  asi que no hay dimension calendario que un split out-of-time dentro de
+  cada banco deba proteger -- la heterogeneidad que mide este proyecto es
+  entre bancos, no en el tiempo.
 
 ## Arquitectura
 

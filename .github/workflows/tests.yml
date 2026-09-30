@@ -24,6 +24,14 @@ jobs:
           - 09-reject-inference-selection-bias
           - 10-through-the-cycle-pd-vasicek
           - 11-federated-credit-scoring
+          - 12-drift-monitoring-psi-ks
+          - 13-feature-store-duckdb
+          - 14-shadow-model-training
+          - 15-model-promotion
+          - 16-shadow-deployment
+          - 17-challenger-analysis
+          - 18-canary-deployment
+          - 19-canary-monitoring
           - 20-full-promotion-cutover
     defaults:
       run:
@@ -52,3 +60,84 @@ jobs:
 
       - name: Run test suite
         run: pytest tests/ -q
+
+  pytest-technique-02:
+    name: 02-bidirectional-r-python-interop (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 02-bidirectional-r-python-interop
+    steps:
+      - uses: actions/checkout@v4
+
+      # requirements.txt pins rpy2, que en Linux compila su wheel contra la
+      # instalacion de R (a diferencia de Windows, donde hay wheel
+      # precompilado) -- sin R presente, `pip install -r requirements.txt`
+      # falla en el paso de build aunque ninguno de los 2 archivos de test de
+      # este job importe rpy2. Se instala R primero, igual que en el job
+      # `r-tests` de abajo, en vez de tocar el requirements.txt real.
+      - name: Set up R (rpy2 needs it present to build, even unused at test time)
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.3.0"
+          use-public-rspm: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+          cache-dependency-path: 02-bidirectional-r-python-interop/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: Run test suite
+        run: pytest tests/ -q
+
+  r-tests:
+    name: testthat (${{ matrix.folder }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        folder:
+          - 01-polyglot-scorecard-r-python-c
+          - 02-bidirectional-r-python-interop
+    defaults:
+      run:
+        working-directory: ${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.3.0"
+          use-public-rspm: true
+
+      - name: Install R package dependencies
+        run: |
+          install.packages(
+            c("testthat", "dplyr", "jsonlite", "AER", "mgcv"),
+            repos = Sys.getenv("RSPM")
+          )
+        shell: Rscript {0}
+
+      - name: Run testthat suite
+        run: Rscript tests/testthat.R
+
+  c-tests:
+    name: score_engine.c (gcc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure build-essential (gcc, make) is available
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Run C test suite
+        run: make -C 01-polyglot-scorecard-r-python-c/c test

@@ -157,6 +157,12 @@ ground truth to check it against.*
   on observables, the conditional relationship inside the approved sample is
   already correct. The failure mode is specific to MNAR, and the two need to
   be distinguished before reaching for a correction.
+- **There's no train/test split here at all, and that's deliberate.** ρ and
+  the model coefficients are recovered by maximum likelihood on the full
+  simulated population and checked against the values the simulator itself
+  used to generate the data — the right validation for a parameter-recovery
+  study, where the question is "did the estimator find the true parameter",
+  not "does this generalise to unseen rows".
 
 ## Architecture
 

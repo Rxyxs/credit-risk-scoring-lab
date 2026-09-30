@@ -8,6 +8,15 @@ tiene sentido llamar a ``execute_cutover`` -- que si modifica estado, y lo
 hace de forma que cada paso quede archivado o registrado antes de
 sobrescribirse, para que un cutover fallido a mitad de camino nunca borre
 sin dejar rastro lo que habia antes.
+
+Como el resto de las tecnicas del pipeline mlops de este laboratorio
+(12-19), esta se integra por archivos en disco, no por import directo de
+paquetes de otras carpetas -- ``canary_config.json`` se reescribe con el
+mismo esquema exacto (``canary_percentage``, ``updated_at``) que
+``CanaryRouter.set_traffic_split`` (tecnica 18) y
+``CanaryHealthMonitor._force_rollback`` (tecnica 19) ya usan, para que
+`18-canary-deployment/run_canary.py` siga leyendo un archivo valido
+despues del cutover sin que este modulo dependa de su codigo.
 """
 
 from __future__ import annotations
@@ -86,9 +95,16 @@ class CutoverManager:
         shutil.copy2(shadow_model_path, champion_path)
         new_champion = "champion_model.pkl"
 
-        canary_config = json.loads(canary_config_path.read_text()) \
-            if canary_config_path.exists() else {}
-        canary_config["canary_traffic_percent"] = 0
+        # Mismo esquema que `set_traffic_split`/`trigger_rollback` (tecnica
+        # 18): reescritura completa, no merge -- si el archivo venia de un
+        # rollback automatico (tecnica 19), sus campos `rollback` /
+        # `rollback_reason` no deben sobrevivir: el 0% ahora es porque el
+        # candidato es el Champion completo, no porque algo fallo.
+        canary_config_path.parent.mkdir(parents=True, exist_ok=True)
+        canary_config = {
+            "canary_percentage": 0,
+            "updated_at": ahora.isoformat(timespec="seconds"),
+        }
         canary_config_path.write_text(json.dumps(canary_config, indent=2))
 
         event_id = str(uuid.uuid4())

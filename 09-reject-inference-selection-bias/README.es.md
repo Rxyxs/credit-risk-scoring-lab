@@ -164,6 +164,13 @@ terreno contra la cual contrastarlo.*
   seleccion depende solo de observables, la relacion condicional dentro de
   la muestra aprobada ya es correcta. La falla es especifica de MNAR, y hay
   que distinguir los dos casos antes de salir a corregir.
+- **Aca no hay ningun split train/test, y es deliberado.** Rho y los
+  coeficientes del modelo se recuperan por maxima verosimilitud sobre toda
+  la poblacion simulada y se chequean contra los valores que el simulador
+  mismo uso para generar los datos -- la validacion correcta para un
+  estudio de recuperacion de parametros, donde la pregunta es "¿el
+  estimador encontro el parametro verdadero?", no "¿esto generaliza a
+  filas no vistas?".
 
 ## Arquitectura
 
