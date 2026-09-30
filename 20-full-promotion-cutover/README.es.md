@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-rastro%20de%20auditoria-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org/)
-[![Tests](https://img.shields.io/badge/tests-10%20passing-brightgreen?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/tests-11%20passing-brightgreen?logo=pytest&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](../LICENSE)
 
 </div>
@@ -165,6 +165,18 @@ termina con código `0`, y el Champion en disco queda idéntico byte a byte.
   Mantenerlo afuera permite que la puerta se pruebe, se registre y se
   razone de forma completamente independiente de todo lo que muta estado —
   vale la linea extra en `run_cutover.py`.
+- **`duckdb.connect` no crea su directorio padre, y las pruebas propias de
+  esta tecnica nunca lo atraparon.** Cada prueba aca construye su ruta de
+  base de datos dentro de `tmp_path`, cuyos ancestros pytest ya crea — asi
+  que un bug de directorio padre faltante no tenia donde aparecer
+  localmente. Aparecio de verdad construyendo
+  [`22-automated-retraining-trigger`](../22-automated-retraining-trigger),
+  que apunta por defecto a esta misma base DuckDB y choco con un
+  `IOException` la primera vez que corrio, antes de que existiera el
+  `outputs/` de esta carpeta. Las dos tecnicas ahora hacen
+  `mkdir(parents=True)` del directorio padre de la base antes de
+  conectarse; la correccion de esta queda fijada por
+  `test_execute_cutover_crea_el_directorio_padre_de_la_base_duckdb_si_falta`.
 
 ## Arquitectura
 
@@ -196,7 +208,7 @@ venv\Scripts\activate            # Windows;  source venv/bin/activate en Linux/m
 pip install -r requirements.txt
 
 python run_cutover.py            # aborta limpiamente si 16/18/19 aun no produjeron estado real
-pytest -v                        # 10 tests
+pytest -v                        # 11 tests
 ```
 
 Un cutover real necesita que `16-shadow-deployment`, `18-canary-deployment`
@@ -207,7 +219,7 @@ necesita nada de eso — construye su propio estado aislado por prueba con
 
 ## Tests
 
-10 tests (`pytest -v`), cada uno construyendo su propio estado de
+11 tests (`pytest -v`), cada uno construyendo su propio estado de
 laboratorio aislado bajo `tmp_path` en vez de compartir fixtures entre
 pruebas: un cutover `HEALTHY` exitoso (el candidato se vuelve Champion, el
 Champion anterior queda archivado byte a byte); la fila exacta en

@@ -110,6 +110,8 @@ class CutoverManager:
         event_id = str(uuid.uuid4())
         promoted_at = ahora.isoformat()
 
+        db_path = Path(db_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
         con = duckdb.connect(str(db_path))
         try:
             con.execute(f"""

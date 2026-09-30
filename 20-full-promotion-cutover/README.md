@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-audit%20trail-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org/)
-[![Tests](https://img.shields.io/badge/tests-10%20passing-brightgreen?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/tests-11%20passing-brightgreen?logo=pytest&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](../LICENSE)
 
 </div>
@@ -156,6 +156,17 @@ exits `0`, and the Champion on disk is byte-for-byte unchanged.
   for `execute_cutover` to check health itself. Keeping it out means the
   gate can be tested, logged, and reasoned about completely independently
   of anything that mutates state — worth the extra line in `run_cutover.py`.
+- **`duckdb.connect` doesn't create its parent directory, and this
+  technique's own tests never caught it.** Every test here builds its
+  database path inside `tmp_path`, whose ancestors pytest already creates
+  — so a missing-parent-directory bug had nowhere to surface locally. It
+  showed up for real while building
+  [`22-automated-retraining-trigger`](../22-automated-retraining-trigger),
+  which points at this same DuckDB file by default and hit
+  `IOException` the first time it ran before this folder's own
+  `outputs/` existed. Both techniques now `mkdir(parents=True)` the
+  database's parent directory before connecting; this one's fix is
+  pinned by `test_execute_cutover_crea_el_directorio_padre_de_la_base_duckdb_si_falta`.
 
 ## Architecture
 
@@ -187,7 +198,7 @@ venv\Scripts\activate            # Windows;  source venv/bin/activate on Linux/m
 pip install -r requirements.txt
 
 python run_cutover.py            # aborts cleanly if 16/18/19 haven't produced real state yet
-pytest -v                        # 10 tests
+pytest -v                        # 11 tests
 ```
 
 A real cutover needs `16-shadow-deployment`, `18-canary-deployment` and
@@ -198,7 +209,7 @@ of that — it builds its own isolated state per test with
 
 ## Tests
 
-10 tests (`pytest -v`), each building its own isolated laboratory state
+11 tests (`pytest -v`), each building its own isolated laboratory state
 under `tmp_path` rather than sharing fixtures across tests: a successful
 `HEALTHY` cutover (candidate becomes Champion, previous Champion archived
 byte for byte); the exact `model_lifecycle_events` row landing in DuckDB;

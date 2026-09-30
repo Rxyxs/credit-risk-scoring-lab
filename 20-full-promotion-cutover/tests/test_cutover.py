@@ -216,6 +216,28 @@ def test_verificacion_de_salud_ignora_campos_extra_del_reporte_real(laboratorio)
     assert manager.verify_health_before_cutover(reporte_path) is True
 
 
+def test_execute_cutover_crea_el_directorio_padre_de_la_base_duckdb_si_falta(laboratorio):
+    """`duckdb.connect` no crea el directorio padre por si solo -- falla
+    con IOException si no existe. Regresion para un bug real de la misma
+    familia encontrado en `22-automated-retraining-trigger`, que llama
+    `duckdb.connect` igual que aca sin mkdir previo."""
+    reporte = escribir_reporte_salud(laboratorio["canary_outputs_dir"], "HEALTHY")
+    db_path = laboratorio["db_path"].parent / "no_existe_todavia" / "lab_lifecycle.duckdb"
+    assert not db_path.parent.exists()
+
+    manager = CutoverManager()
+    manager.verify_health_before_cutover(reporte)
+    manager.execute_cutover(
+        shadow_model_path=laboratorio["shadow_path"],
+        champion_dir=laboratorio["champion_dir"],
+        archive_dir=laboratorio["archive_dir"],
+        canary_config_path=laboratorio["canary_config_path"],
+        db_path=db_path,
+    )
+
+    assert db_path.exists()
+
+
 def test_cutover_repetido_archiva_cada_champion_anterior_por_separado(laboratorio):
     reporte = escribir_reporte_salud(laboratorio["canary_outputs_dir"], "HEALTHY")
     manager = CutoverManager()
