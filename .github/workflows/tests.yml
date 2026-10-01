@@ -38,6 +38,7 @@ jobs:
           - 23-automated-retraining-pipeline
           - 24-model-lineage-governance
           - 25-api-inference-service
+          - 26-lab-summary-dashboard
     defaults:
       run:
         working-directory: ${{ matrix.folder }}
