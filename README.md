@@ -2,14 +2,17 @@
 
 # Credit Risk Scoring Lab
 
-**Eleven self-contained approaches to one question — *how likely is this borrower to default, and what should be done about it?* — each answering it with a different method, and each reporting what its method costs as well as what it buys.**
+**A closed-loop MLOps platform for credit risk, not a notebook of models: eleven from-scratch statistical techniques for the scoring question itself, wired into fifteen more that detect drift, retrain, deploy, canary-test, cut over, monitor realized performance, and audit the whole system — honestly, including the state where retraining fired and nobody closed the loop yet.**
 
 [![tests](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml/badge.svg)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
-[![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![CI](https://img.shields.io/badge/CI-29%2F29%20jobs%20passing-brightgreen?logo=githubactions&logoColor=white)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![R](https://img.shields.io/badge/R-4.4-276DC3?logo=r&logoColor=white)](https://www.r-project.org/)
 [![C](https://img.shields.io/badge/C-MSVC-A8B9CC?logo=c&logoColor=white)](https://en.wikipedia.org/wiki/C_(programming_language))
-[![Techniques](https://img.shields.io/badge/techniques-11-2C5F8A)](#the-eleven-techniques-in-detail)
-[![Tests](https://img.shields.io/badge/tests-325%20in%20techniques%2003--11-brightgreen?logo=pytest&logoColor=white)](#testing-standard)
+[![DuckDB](https://img.shields.io/badge/DuckDB-feature%20store%20%2B%20ledger-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-inference%20%2B%20dashboard-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-training%20%2B%20metrics-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
+[![Techniques](https://img.shields.io/badge/techniques-26-2C5F8A)](#the-26-techniques-master-index)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
 ---
@@ -20,19 +23,208 @@ Most credit-scoring material stops at one model and one number: fit a
 classifier, report an AUC, done. That leaves out almost everything a risk team
 actually argues about — *when* the risk arrives, how much the model knows about
 segments it barely saw, whether a supervisor would accept its logic, whether it
-treats groups differently, whether it leaks the data it was trained on, and how
-anyone would find out it stopped working.
+treats groups differently, whether it leaks the data it was trained on, and
+what happens after it ships: whether anyone would notice it drifted, whether a
+canary release would catch a bad candidate before it hurt anyone, and whether
+the system that's supposed to retrain itself actually gets all the way back to
+a new Champion — or just fires an alert and stalls.
 
-This lab takes each of those as its own engineering problem and builds it end
-to end. Every folder is a complete project: a README in two languages, its own
-dependencies and tests, a pipeline that runs from a single command, real
-numbers from an actual run, and an explicit section on what *didn't* work.
+This lab builds both halves. **Techniques 01–11** are eleven from-scratch
+answers to the scoring question itself — survival analysis, hierarchical
+Bayes, conformal prediction, fair lending, differential privacy, federated
+learning, and more, each with its own honest-findings section. **Techniques
+12–26** are the production lifecycle around any one of those models: drift
+detection, a feature store, shadow training, promotion, dual inference, canary
+routing, health monitoring, a full cutover, post-cutover telemetry, an
+automated retraining trigger, a closed-loop retraining pipeline, dual-hop
+model lineage, a real-time FastAPI inference service, and a final dashboard
+that audits the other twenty-five and reports `HEALTHY` or `DEGRADED` — with
+the specific reason, never a number averaged into false confidence.
 
-The unifying constraint is that **claims have to be checkable**. That is why
-most of the core algorithms are written from scratch instead of imported, and
-why the data is simulated from a known process: when you control the truth,
-"the model recovered the real coefficients" or "91.6% of that gap is
-legitimate" stops being a claim and becomes a measurement.
+Every folder is a complete project: a README in two languages, its own
+dependencies and tests, a pipeline or CLI that runs from a single command,
+real numbers from an actual run, and an explicit section on what *didn't*
+work. The unifying constraint, from technique 01 to technique 26, is that
+**claims have to be checkable**. That is why most core algorithms are written
+from scratch instead of imported, why the data is simulated from a known
+process in 01–11, and why 12–26 were built by actually running the chain
+end to end — generating real drift, real snapshots, real cutovers — rather
+than trusting a test suite's seeded fixtures alone.
+
+## Architecture: five phases, end to end
+
+```mermaid
+flowchart TB
+    subgraph F1["Fase 1 · Feature Engineering y Baseline — 01-11"]
+        direction LR
+        P1["Scorecards R+Python+C · Supervivencia · Bayes jerarquico<br/>Monotono+conforme · Binning optimo · Fair lending<br/>Privacidad diferencial · Reject inference · TTC/PIT · Federado"]
+    end
+
+    subgraph F2["Fase 2 · Drift, Ingesta y Registro Sombra — 12-15"]
+        direction LR
+        P2a["12<br/>Drift PSI/KS"] --> P2b["13<br/>Feature Store<br/>DuckDB"] --> P2c["14<br/>Entrenamiento<br/>Sombra"] --> P2d["15<br/>Decision de<br/>Promocion"]
+    end
+
+    subgraph F3["Fase 3 · Inferencia Dual, Canary y Cutover — 16-20"]
+        direction LR
+        P3a["16<br/>Despliegue<br/>Sombra"] --> P3b["17<br/>Analisis<br/>Challenger"] --> P3c["18<br/>Enrutamiento<br/>Canary"] --> P3d["19<br/>Salud<br/>Canaria"] --> P3e["20<br/>Cutover<br/>Completo"]
+    end
+
+    subgraph F4["Fase 4 · Telemetria Realizada, Disparador y Reentrenamiento — 21-23"]
+        direction LR
+        P4a["21<br/>Telemetria<br/>Post-Cutover"] --> P4b["22<br/>Disparador<br/>AUC/PSI"] --> P4c["23<br/>Pipeline de<br/>Reentrenamiento"]
+    end
+
+    subgraph F5["Fase 5 · Gobernanza, API y Dashboard — 24-26"]
+        direction LR
+        P5a["24<br/>Linaje<br/>Dual-Hop"]
+        P5b["25<br/>API REST<br/>FastAPI"]
+        P5c["26<br/>Dashboard de<br/>Auditoria"]
+    end
+
+    F1 -.alimenta el esquema de.-> F2
+    F2 --> F3 --> F4
+    F4 -.dispara un nuevo ciclo en.-> F2
+    F3 -.sirve en vivo via.-> F5
+    F4 --> F5
+```
+
+The dotted line from Phase 4 back into Phase 2 is the actual closed loop, not
+a decoration: technique 23's retrained Challenger is a real
+`shadow_model_<timestamp>.pkl`, in the exact shape techniques 14 and 15
+already know how to consume, so it can re-enter promotion and deployment
+without a special case. Technique 26's own audit of this lab, run against the
+real chain, caught that loop open mid-cycle — a trigger fired, a Challenger
+was trained, nobody ran it back through promotion yet — and reported
+`DEGRADED` rather than hiding it.
+
+## The 26 techniques, master index
+
+| # | Directory | Technique | Key metric / artifact | Run |
+|---|---|---|---|---|
+| 01 | [`01-polyglot-scorecard-r-python-c`](01-polyglot-scorecard-r-python-c) | Polyglot scorecard (R+Python+C) | C engine matches R to **4.79e-11** at **270.6M rows/s** | `pytest -q` · `Rscript tests/testthat.R` · `make -C c test` |
+| 02 | [`02-bidirectional-r-python-interop`](02-bidirectional-r-python-interop) | Bidirectional R↔Python interop | Empirical LGD **67.4% → 83.7%** in recession; ECL **+24.2%** | `pytest -q` · `Rscript tests/testthat.R` |
+| 03 | [`03-survival-lifetime-pd-term-structure`](03-survival-lifetime-pd-term-structure) | Lifetime PD from survival analysis | **50.5%** of lifetime risk arrives after month 12 | `pytest -q` |
+| 04 | [`04-bayesian-hierarchical-partial-pooling`](04-bayesian-hierarchical-partial-pooling) | Bayesian hierarchical scorecard | Segment-effect error **−39%** | `pytest -q` |
+| 05 | [`05-monotonic-constraints-conformal-decisioning`](05-monotonic-constraints-conformal-decisioning) | Monotonic constraints + conformal | Violations **97.15% → 0.00%** | `pytest -q` |
+| 06 | [`06-optimal-binning-scorecard`](06-optimal-binning-scorecard) | Optimal-binning scorecard | **+13% IV** over deciles | `pytest -q` |
+| 07 | [`07-fair-lending-bias-audit`](07-fair-lending-bias-audit) | Fair lending bias audit | Gender reconstructed at **AUC 0.768** | `pytest -q` |
+| 08 | [`08-differential-privacy-scoring`](08-differential-privacy-scoring) | Differentially private scoring | ε=1 costs **18.4% of AUC** to hide memorisation | `pytest -q` |
+| 09 | [`09-reject-inference-selection-bias`](09-reject-inference-selection-bias) | Reject inference & selection bias | ρ recovered to **0.02** of truth with an instrument | `pytest -q` |
+| 10 | [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) | Through-the-cycle vs. point-in-time PD | PIT capital swings **173.5 pp** of RWA density | `pytest -q` |
+| 11 | [`11-federated-credit-scoring`](11-federated-credit-scoring) | Federated credit scoring | Local-only misprices national risk by **24.6 pp** | `pytest -q` |
+| 12 | [`12-drift-monitoring-psi-ks`](12-drift-monitoring-psi-ks) | Drift monitoring (PSI / KS) | `ingreso_mensual` PSI **0.82** (red) in a real run | `pytest -q` |
+| 13 | [`13-feature-store-duckdb`](13-feature-store-duckdb) | Feature store on DuckDB | Upserts drift snapshots into `credit_features` | `pytest -q` |
+| 14 | [`14-shadow-model-training`](14-shadow-model-training) | Shadow model training | Trains a Challenger from the freshest feature-store snapshot | `pytest -q` |
+| 15 | [`15-model-promotion`](15-model-promotion) | Model promotion decision | `PROMOTED`/`REJECTED` against min ROC-AUC + sample size | `pytest -q` |
+| 16 | [`16-shadow-deployment`](16-shadow-deployment) | Shadow deployment (dual inference) | Champion vs. Challenger logged side by side, never swapped | `pytest -q` |
+| 17 | [`17-challenger-analysis`](17-challenger-analysis) | Challenger analysis | Champion/Challenger divergence monitoring | `pytest -q` |
+| 18 | [`18-canary-deployment`](18-canary-deployment) | Canary deployment | Deterministic MD5-hash traffic split, any `canary_percentage` | `pytest -q` |
+| 19 | [`19-canary-monitoring`](19-canary-monitoring) | Canary health monitoring | Auto-rollback on null-rate / score-diff / high-risk thresholds | `pytest -q` |
+| 20 | [`20-full-promotion-cutover`](20-full-promotion-cutover) | Full promotion cutover | Archive-then-promote Champion swap, audited in DuckDB | `pytest -q` |
+| 21 | [`21-post-cutover-telemetry`](21-post-cutover-telemetry) | Post-cutover telemetry | Realized AUC/Brier/log-loss + PSI vs. matured ground truth | `pytest -q` |
+| 22 | [`22-automated-retraining-trigger`](22-automated-retraining-trigger) | Automated retraining trigger | Fires on realized AUC `< 0.72` or PSI `> 0.20` | `pytest -q` |
+| 23 | [`23-automated-retraining-pipeline`](23-automated-retraining-pipeline) | Automated retraining pipeline | Trigger → fresh `shadow_model_<timestamp>.pkl`, no special case | `pytest -q` |
+| 24 | [`24-model-lineage-governance`](24-model-lineage-governance) | Model lineage & governance | Dual-hop trace: `champion_model.pkl` → `active_shadow_model.pkl` → `shadow_model_<timestamp>.pkl` | `pytest -q` |
+| 25 | [`25-api-inference-service`](25-api-inference-service) | Real-time inference API | `POST /predict`: `503` not `500` with no Champion, `400` not `422` on bad input | `pytest -v` |
+| 26 | [`26-lab-summary-dashboard`](26-lab-summary-dashboard) | Lab summary dashboard | Audits all 25 others into one `HEALTHY`/`DEGRADED` verdict | `pytest -q` |
+
+## Staff highlights
+
+Four things in this lab that only showed up by actually running the full
+chain, not by passing a test suite against seeded fixtures:
+
+- **Multi-DuckDB isolation and reflective auditing.** There is no single
+  "central" database. `13-feature-store-duckdb`, `16-shadow-deployment`,
+  `18-canary-deployment`, `20-full-promotion-cutover`, and
+  `25-api-inference-service` each keep their own `.duckdb` file with their
+  own table — a deliberate choice this chain makes consistently (see
+  `19-canary-monitoring`'s own docstring on why techniques never import each
+  other's code, only integrate by file and by table). Technique 26's auditor
+  is built around that reality instead of fighting it: `audit_database_integrity`
+  takes *one* path and introspects whichever tables that specific file
+  actually has via `information_schema.tables`, rather than assuming a fixed
+  schema — so it works against all five real databases by being called five
+  times, not by being rewritten five times.
+- **Dual-hop lineage resolution.** Tracing `champion_model.pkl` back to its
+  training run doesn't resolve in one hop. Technique 20's cutover manifest
+  points at `active_shadow_model.pkl` — the fixed name technique 16's
+  registry always uses for whatever candidate is currently active, never the
+  original filename. The real identity, `shadow_model_<timestamp>.pkl`,
+  survives one hop further back in `registry_manifest.json`'s
+  `active_version` field. Technique 24's first version only implemented the
+  first hop; running it against the real chain for the first time produced a
+  trace with every field `null` except the bare cutover event, which is what
+  surfaced the second hop was missing.
+- **Honest governance: a half-closed retraining loop reports `DEGRADED`.**
+  Technique 26's real end-to-end run shows exactly this: a retraining trigger
+  fired for real (realized AUC 0.64), technique 23 trained a genuine new
+  Challenger in response — it's sitting in the report as a valid, loadable
+  artifact — but it was never run back through promotion and cutover to
+  become the new Champion. The lab status comes out `DEGRADED`, correctly,
+  because the verdict is built from two named conditions (no valid Champion,
+  or an unresolved active trigger), never a blended score that a still-valid
+  Champion file could quietly outweigh.
+- **AUC vs. calibration misalignment.** Technique 11 found it first in a
+  federated-learning context (a bank trained only on its own high-risk
+  customers scores a respectable **AUC 0.77+** nationally while mispricing
+  the actual default rate by 24.6 percentage points), and technique 21's
+  real post-cutover run reproduces the same shape deliberately: **ROC-AUC
+  0.775** sitting next to a **−7.94 pp** calibration bias in the same
+  report. A model can rank applicants well while being wrong about the
+  actual *level* of risk, and a ranking metric alone will never show it —
+  which is why every telemetry and promotion report in this lab carries
+  `predicted_default_rate` next to `observed_default_rate`, not just AUC.
+
+## Quickstart
+
+```bash
+git clone https://github.com/Rxyxs/credit-risk-scoring-lab.git
+cd credit-risk-scoring-lab
+
+# Any technique is self-contained — install and test it on its own:
+cd 20-full-promotion-cutover
+python -m venv venv
+venv\Scripts\activate                       # source venv/bin/activate on Linux/macOS
+pip install -r requirements.txt
+pytest -v
+cd ..
+```
+
+**Run the full test suite across every technique** (requires each folder's
+own `requirements.txt` installed, matching what CI's 29-job matrix does per
+folder):
+
+```bash
+for d in */; do
+  [ -f "${d}pytest.ini" ] && (cd "$d" && pytest -q)
+done
+```
+
+**Replicate the closed loop end to end** — real drift through a real audit,
+the same sequence used to produce every "results from an actual run" section
+in techniques 12–26:
+
+```bash
+cd 12-drift-monitoring-psi-ks && python run_pipeline.py --auto-retrain-trigger && cd ..
+cd 13-feature-store-duckdb     && python run_ingestion.py                      && cd ..
+cd 14-shadow-model-training    && python run_training.py                      && cd ..
+cd 15-model-promotion          && python run_promotion.py                     && cd ..
+# 16/18/20 need a --champion-model .pkl and --input-data CSV the first time through
+# (see each technique's own README for the one-line stub-model script);
+# 19, 21, 22, 23, 24, 25 then run with no extra arguments:
+cd 19-canary-monitoring        && python run_health_check.py                  && cd ..
+cd 20-full-promotion-cutover   && python run_cutover.py                       && cd ..
+cd 21-post-cutover-telemetry   && python run_telemetry.py                     && cd ..
+cd 22-automated-retraining-trigger && python run_trigger_check.py             && cd ..
+cd 23-automated-retraining-pipeline && python run_orchestrator.py             && cd ..
+cd 24-model-lineage-governance && python run_lineage.py --model-filename champion_model.pkl && cd ..
+cd 26-lab-summary-dashboard    && python run_lab_summary.py                   && cd ..
+```
+
+---
+
+# Techniques 01–11, in depth
 
 ### Where each technique sits in the credit lifecycle
 
@@ -79,7 +271,7 @@ flowchart LR
 
 ---
 
-# The eleven techniques, in detail
+## Techniques 01–11, in detail
 
 ## 01 · Polyglot scorecard (R + Python + C)
 
@@ -613,17 +805,20 @@ Each component below is built directly and pinned to an independent check:
 
 ### Testing standard
 
-Techniques 03–11 ship **325 tests**; technique 01 reports 23 passing (plus 10
-skipped without a locally compiled C engine) in its own README; technique 02
-adds **8 more** — its MLP loss/training and DuckDB metrics-persistence tests
-(`02-bidirectional-r-python-interop/tests/`), which need no R runtime since
-neither imports `rpy2` at module load time. The R⇄Python bridge itself is
-exercised separately, by the `testthat` job below.
+Techniques 03–11 ship **325 tests**; techniques 12–26 ship **245 more** (the
+production lifecycle around any one model); technique 01 reports 23 passing
+(plus 10 skipped without a locally compiled C engine) in its own README;
+technique 02 adds its own MLP loss/training and DuckDB metrics-persistence
+tests (`02-bidirectional-r-python-interop/tests/`), run locally rather than
+from CI since the R⇄Python bridge itself is exercised separately, by the
+`testthat` job below.
 They target what fails *silently* rather than loudly: an analytic identity the
 implementation must reproduce, a hand-computed example, a property that must
-hold (coverage, monotonicity, composition), or a planted effect a diagnostic is
-required to detect — and, just as important, cases where a diagnostic must stay
-quiet.
+hold (coverage, monotonicity, composition), a planted effect a diagnostic is
+required to detect, or — for 12–26 — a regression class this lab actually hit
+while building it (a `duckdb.connect` call with no parent directory, found and
+fixed three separate times before technique 23 shipped with the guard already
+in place).
 
 | # | Tests | A representative check |
 |---|---|---|
@@ -636,15 +831,31 @@ quiet.
 | 09 | 64 | The bivariate probit recovers ρ within 0.08 with an exclusion instrument, and is required to miss by more than 0.15 without one |
 | 10 | 41 | The closed-form Vasicek quantile matches an independent 50,000-obligor Monte Carlo simulation to within 0.01 |
 | 11 | 26 | FedAvg with one client matches centralized gradient descent to `1e-9`; with E=1 and unevenly sized clients, to `1e-9` against the pooled-data gradient |
+| 12 | 44 | PSI/KS drift detectors tested against both a stable distribution and a deliberately shifted one |
+| 13 | 13 | Upserting the same snapshot twice by `client_id` never duplicates a row |
+| 14 | 14 | Target-column resolution falls back through a candidate list; training aborts below the minimum row count |
+| 15 | 17 | The promotion decision derives `shadow_model_<ts>.pkl` from `shadow_metrics_<ts>.json`'s own filename, same timestamp |
+| 16 | 12 | Dual inference answers with the Champion alone, never raises, when no Challenger is registered |
+| 17 | 18 | Champion/Challenger divergence monitoring over logged dual-inference predictions |
+| 18 | 27 | The same `client_id` always lands in the same cohort for a given `canary_percentage` — deterministic MD5 hashing |
+| 19 | 22 | Auto-rollback fires exactly when null-rate / score-diff / high-risk-rate cross their thresholds, and not before |
+| 20 | 11 | Two cutovers in the same run archive two distinct Champions rather than one overwriting the other |
+| 21 | 12 | PSI is checked to `1e-9` against an independent, non-vectorized reference bucketing implementation |
+| 22 | 12 | A drift-triggered PSI can fire the retrain condition even on an otherwise `INSUFFICIENT_MATURITY` report |
+| 23 | 11 | The retrained Challenger is named `shadow_model_<ts>.pkl` — identical in shape to one trained by hand |
+| 24 | 9 | A Champion's lineage resolves through two hops — cutover manifest, then registry manifest — never one |
+| 25 | 11 | A string in a numeric field returns `400` with Pydantic's own validation detail, never FastAPI's default `422` |
+| 26 | 12 | `DEGRADED` fires from two named conditions (no valid Champion, or an unresolved active trigger), never a blended score |
 
 ### Continuous integration
 
-Every push and pull request to `main` runs **14 independent jobs on
+Every push and pull request to `main` runs **29 independent jobs on
 `ubuntu-latest`**, one workflow, three languages — [`.github/workflows/tests.yml`](.github/workflows/tests.yml):
 
 | Language | Jobs | What each job runs | Latest green run |
 |---|---|---|---|
-| Python | 11 (one per technique: 01–11) | `pytest tests/ -q` | **356 passed**, 10 skipped¹ |
+| Python | 25 (technique 01, then 03–26) | `pytest tests/ -q` | **29/29 jobs passing** |
+| Python (technique 02) | 1 | `pytest tests/ -q` with R present so `rpy2`'s wheel can build | included above |
 | R (`testthat`) | 2 (techniques 01 and 02) | WOE/IV binning, PDO scorecard scaling (01); empirical LGD panel simulation and Beta/Logit calibration (02) | **50 assertions passed** |
 | C (`gcc`, `make test`) | 1 (technique 01's `score_engine.c`) | Exact numeric correctness, NULL/out-of-range safety, batch-vs-single-row consistency | **1020 assertions passed**² |
 
@@ -739,6 +950,39 @@ ones:
   the bivariate probit without an exclusion restriction finds a genuine local
   optimum with a near-zero gradient and higher likelihood than the true
   parameters — statistical convergence and correctness are not the same claim.
+- **No earlier technique pairs "what the model predicted" with "what actually
+  happened" for the same client — so 21 had to define that schema itself.**
+  Nothing in 12–20 logs a matured outcome against a production prediction for
+  the same `client_id`; `18-canary-deployment` only logs predictions during
+  the canary phase, before a full cutover. Technique 21's
+  `realized_predictions` / `ground_truth_labels` tables are the first time
+  this lab defines that pairing, which is also why it reports an explicit
+  `INSUFFICIENT_MATURITY` status below 50 matched labels instead of a
+  confident number computed on five.
+- **The exact same missing-`mkdir` bug was found and fixed three times before
+  it stopped recurring.** `duckdb.connect()` doesn't create its database's
+  parent directory. Technique 22 found this the hard way against a real run,
+  fixed it there, then discovered the identical latent bug already existed in
+  technique 20 (masked because a different `mkdir(parents=True)` call
+  happened to run first) and fixed it there too. Technique 23 shipped with
+  the guard already in place from the start — the third occurrence of the
+  same regression class is the one that didn't happen.
+- **A dual-hop identity resolution only surfaced by running the real chain,
+  not the test suite.** Technique 24's lineage tracer assumed a Champion's
+  cutover manifest would point directly at its original
+  `shadow_model_<timestamp>.pkl`. Running it against a real promoted model
+  produced a trace with every field `null`: the manifest actually points at
+  `active_shadow_model.pkl`, a fixed name technique 16's registry always
+  uses, with the real timestamped identity surviving one hop further back in
+  `registry_manifest.json`. The hand-built test fixture had quietly assumed
+  the simpler, wrong shape until the real run proved it wasn't.
+- **An honest audit reports the state mid-loop, not just the last clean
+  state.** Technique 26's real run against the full chain returned
+  `DEGRADED` — not because anything crashed, but because a retraining
+  trigger fired and technique 23 produced a valid new Challenger that was
+  never run back through promotion to become the Champion. The verdict is
+  built from two named conditions, never a score a still-valid Champion file
+  could quietly average upward.
 
 ## Running a technique
 
@@ -750,30 +994,53 @@ python -m venv venv
 venv\Scripts\activate                        # source venv/bin/activate on Linux/macOS
 pip install -r requirements.txt
 
-python run_pipeline.py                       # data → models → reports → charts
+python run_pipeline.py                       # data → models → reports → charts (01–11)
 pytest -q                                    # that folder's test suite
 ```
 
+Techniques 12–26 follow the same install pattern but run a `run_*.py` CLI
+instead of `run_pipeline.py` (`run_lab_summary.py`, `run_cutover.py`,
+`run_lineage.py`, …) — each one's own README names its script and its real
+default paths into the sibling techniques it integrates with by file.
+
 Techniques 01 and 02 additionally need R (and, for 01, a C compiler); their
-READMEs cover that setup. Techniques 03–08 are pure Python and install in one
-step.
+READMEs cover that setup. Techniques 03–11 are pure Python and install in one
+step; techniques 12–26 add `duckdb`, and 25/26 add `fastapi` + `uvicorn`.
 
 ```
 credit-risk-scoring-lab/
-├── 01-polyglot-scorecard-r-python-c/     R + Python + C, FastAPI, reject inference
-├── 02-bidirectional-r-python-interop/    reticulate + rpy2, GARCH, Tobit/GAM LGD
+├── 01-polyglot-scorecard-r-python-c/       R + Python + C, FastAPI, reject inference
+├── 02-bidirectional-r-python-interop/      reticulate + rpy2, GARCH, Tobit/GAM LGD
 ├── 03-survival-lifetime-pd-term-structure/
 ├── 04-bayesian-hierarchical-partial-pooling/
 ├── 05-monotonic-constraints-conformal-decisioning/
 ├── 06-optimal-binning-scorecard/
 ├── 07-fair-lending-bias-audit/
 ├── 08-differential-privacy-scoring/
-│   ├── README.md / README.es.md          documentation with real results
+│   ├── README.md / README.es.md            documentation with real results
 │   ├── requirements.txt, pytest.ini
-│   ├── run_pipeline.py                   the whole technique, one command
-│   ├── src/                              modules + visualization/
+│   ├── run_pipeline.py                     the whole technique, one command
+│   ├── src/                                modules + visualization/
 │   ├── tests/
-│   └── outputs/plots/                    versioned charts (reports are regenerated)
+│   └── outputs/plots/                      versioned charts (reports are regenerated)
+├── 09-reject-inference-selection-bias/
+├── 10-through-the-cycle-pd-vasicek/
+├── 11-federated-credit-scoring/
+├── 12-drift-monitoring-psi-ks/             drift detection + auto-retrain trigger
+├── 13-feature-store-duckdb/                credit_features, upsert by client_id
+├── 14-shadow-model-training/               fetch -> train -> evaluate -> save
+├── 15-model-promotion/                     PROMOTED / REJECTED decision
+├── 16-shadow-deployment/                   dual inference, Champion vs. Challenger
+├── 17-challenger-analysis/                 divergence monitoring
+├── 18-canary-deployment/                   deterministic traffic split
+├── 19-canary-monitoring/                   auto-rollback on canary health
+├── 20-full-promotion-cutover/              archive-then-promote Champion swap
+├── 21-post-cutover-telemetry/              realized AUC/Brier/PSI vs. ground truth
+├── 22-automated-retraining-trigger/        AUC/PSI threshold -> retrain decision
+├── 23-automated-retraining-pipeline/       closed-loop retraining orchestration
+├── 24-model-lineage-governance/            dual-hop lineage reconstruction
+├── 25-api-inference-service/               FastAPI /health, /predict
+├── 26-lab-summary-dashboard/               HEALTHY/DEGRADED audit of 01-25
 └── LICENSE
 ```
 
@@ -785,13 +1052,14 @@ credit-risk-scoring-lab/
 | Statistical / econometric | R (`dplyr`, `glm`, `rugarch`, `AER`, `mgcv`); from-scratch Cox, Gibbs, conformal and DP implementations |
 | Gradient boosting & explainability | XGBoost, LightGBM, SHAP (01); `HistGradientBoostingClassifier` with monotonic constraints (05, 07) |
 | Deep learning | PyTorch MLP with focal loss (01) |
-| Serving & storage | FastAPI, DuckDB (01) |
+| MLOps lifecycle (12–23) | DuckDB (feature store, lifecycle ledger, per-service logs); PSI/KS drift detection; deterministic MD5-hash canary routing |
+| Governance & serving (24–26) | FastAPI + Pydantic v2 (`/health`, `/predict`, `/summary`); `httpx`/`TestClient` integration tests; dual-hop model lineage reconstruction |
 | Interop | `reticulate` (R → Python), `rpy2` (Python → R), `ctypes` (Python → C) |
 | Charts | Matplotlib (static, versioned), Plotly (interactive, regenerated locally) |
 
 ## Production readiness checklist
 
-Closing note for this lab's second week of work: what's actually verified
+Closing note for this lab's full 30-technique build: what's actually verified
 as of this commit, not what's aspired to. Each row links to where it's
 checked, following the same rule as the rest of this README — a checkmark
 here means there's a command or a CI job that proves it, not a claim
@@ -799,12 +1067,13 @@ resting on this table alone.
 
 | | Item | Evidence |
 |---|---|---|
-| ✅ | Polyglot CI automated (14/14 jobs on GitHub Actions: Python + R + C) | [Continuous integration](#continuous-integration); latest green run linked from the badge at the top of this page |
-| ✅ | Test coverage (356 pytest, 50 testthat, 1020 C assertions) | Same section — three different units, kept separate rather than summed into one misleading number |
+| ✅ | Polyglot CI automated (29/29 jobs on GitHub Actions: Python + R + C) | [Continuous integration](#continuous-integration); latest green run linked from the badge at the top of this page |
+| ✅ | Test coverage (570 pytest across 03–26, 23 + 2 in 01, 50 testthat, 1020 C assertions) | Same section — different units, kept separate rather than summed into one misleading number |
 | ✅ | Decoupled C engine (~142.8M rows/sec, defensive NaN/bounds checks) | [Section 6 of technique 01](01-polyglot-scorecard-r-python-c/README.md#6-c-engine--correctness-and-performance); `c/tests/test_score_engine.c` exercises the NULL/out-of-range paths directly |
 | ✅ | WOE scorecard + Beta regression / LGD in R (`mgcv`/`AER` validated) | [Technique 01](#01--polyglot-scorecard-r--python--c) (WOE/PDO) and [technique 02](#02--bidirectional-rpython-interop) (Tobit/GAM LGD); both packages installed and exercised by the `testthat` CI job, not just imported |
-| ✅ | 11 risk techniques operational, checked for temporal data leakage | Every technique's split methodology reviewed this week (see each README's validation note): 9 are cross-sectional simulations with no calendar dimension, where a stratified random split is the *correct* choice, not a shortcut; technique 06 runs a genuine vintage-based out-of-time split; technique 03 is flagged as the one honest gap — it has vintage cohorts it doesn't use for OOT, unlike 06 |
-| ✅ | Bilingual documentation (EN/ES) with architecture and interoperability diagrams | Every technique ships a `README.md`/`README.es.md` pair; Mermaid flowcharts in this README and in techniques 01/02's own READMEs; the `ctypes` memory-layout note in technique 01 and the `reticulate`/`rpy2` bridges in technique 02 |
+| ✅ | 11 risk techniques operational, checked for temporal data leakage | Every technique's split methodology reviewed (see each README's validation note): 9 are cross-sectional simulations with no calendar dimension, where a stratified random split is the *correct* choice, not a shortcut; technique 06 runs a genuine vintage-based out-of-time split; technique 03 is flagged as the one honest gap — it has vintage cohorts it doesn't use for OOT, unlike 06 |
+| ✅ | Closed-loop MLOps lifecycle operational end to end (12→26) | [Staff highlights](#staff-highlights); a real chain run — real drift, real cutover, real retraining trigger — audited by technique 26 and reported `DEGRADED` with the specific unresolved cause, not hidden behind a passing test suite |
+| ✅ | Bilingual documentation (EN/ES) with architecture and interoperability diagrams | Every technique ships a `README.md`/`README.es.md` pair; Mermaid flowcharts in this README and in every technique's own README; the `ctypes` memory-layout note in technique 01 and the `reticulate`/`rpy2` bridges in technique 02 |
 
 ## Author
 
