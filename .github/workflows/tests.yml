@@ -36,6 +36,7 @@ jobs:
           - 21-post-cutover-telemetry
           - 22-automated-retraining-trigger
           - 23-automated-retraining-pipeline
+          - 24-model-lineage-governance
     defaults:
       run:
         working-directory: ${{ matrix.folder }}
