@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credit Risk Scoring Lab</title>
+<meta name="description" content="**A closed-loop MLOps platform for credit risk, not a notebook of models: eleven from-scratch statistical techniques for the scoring question itself, wired into fifteen more that d">
+<style>
+  :root { --bg:#FBFAF8; --surface:#FFF; --ink:#23201D; --muted:#6B645D; --line:#E3DED7; --accent:#B5553D; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg:#171614; --surface:#201E1B; --ink:#EDE9E3; --muted:#A9A29A; --line:#322E2A; --accent:#D9765C; } }
+  :root[data-theme="dark"] { --bg:#171614; --surface:#201E1B; --ink:#EDE9E3; --muted:#A9A29A; --line:#322E2A; --accent:#D9765C; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.68 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:900px; margin:0 auto; padding:0 16px 88px; }
+  header { padding:60px 0 32px; border-bottom:1px solid var(--line); margin-bottom:36px; }
+  h1 { font-size:clamp(1.7rem,5vw,2.4rem); line-height:1.16; margin:0 0 18px; letter-spacing:-.02em; }
+  .lede { font-size:clamp(1rem,2.3vw,1.1rem); color:var(--muted); margin:0 0 22px; max-width:62ch; }
+  .lede strong { color:var(--ink); }
+  .links a { display:inline-block; margin:0 9px 9px 0; padding:9px 15px; border:1px solid var(--line);
+    border-radius:7px; text-decoration:none; color:var(--ink); background:var(--surface); font-size:.9rem;
+    transition:border-color .15s; }
+  .links a:hover { border-color:var(--accent); }
+  h2 { font-size:1.3rem; margin:48px 0 8px; padding-top:12px; border-top:1px solid var(--line); letter-spacing:-.01em; }
+  figure { margin:22px 0; }
+  figure img { width:100%; height:auto; display:block; border:1px solid var(--line); border-radius:9px; background:#fff; }
+  figcaption { font-size:.85rem; color:var(--muted); margin-top:9px; max-width:70ch; }
+  p { margin:0 0 16px; max-width:70ch; }
+  code { background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:1px 5px; font-size:.86em;
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+  footer { margin-top:60px; padding-top:22px; border-top:1px solid var(--line); font-size:.86rem; color:var(--muted); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>Credit Risk Scoring Lab</h1>
+<p class="lede"><strong>A closed-loop MLOps platform for credit risk, not a notebook of models: eleven from-scratch statistical techniques for the scoring question itself, wired into fifteen more that detect drift, retrain, deploy, canary-test, cut over, monitor realized performance, and audit the whole system — honestly, including the state where retraining fired and nobody closed the loop yet.</strong></p>
+<div class="links">
+<a href="https://github.com/Rxyxs/credit-risk-scoring-lab">Code and method</a>
+<a href="https://github.com/Rxyxs/credit-risk-scoring-lab#readme">Full README</a>
+</div></header>
+<p>This page shows the project's results. The methodology, the design decisions and the limitations are documented in the repository's README.</p>
+<h2>01 · Polyglot scorecard (R + Python + C)</h2>
+<figure>
+<img src="figures/c_engine_benchmark.png" alt="Scoring engine benchmark" loading="lazy">
+<figcaption>*Throughput over 1,000,000 rows, log scale. The compiled engine scores 270.6M</figcaption>
+</figure>
+<h2>02 · Bidirectional R↔Python interop</h2>
+<figure>
+<img src="figures/combined_risk_heatmap.png" alt="Combined credit and market risk heatmap" loading="lazy">
+<figcaption>*The centrepiece: expected loss per credit-risk band stressed against three</figcaption>
+</figure>
+<h2>03 · Lifetime PD from survival analysis</h2>
+<figure>
+<img src="figures/hazard_base_vs_verdad.png" alt="Estimated hazard vs. the true generating hazard" loading="lazy">
+<figcaption>*The estimated hazard against the one the simulator actually used. The seasoning</figcaption>
+</figure>
+<figure>
+<img src="figures/pd_term_structure.png" alt="PD term structure by risk band" loading="lazy">
+<figcaption>*Left: cumulative PD by horizon for each risk band, with the 12-month</figcaption>
+</figure>
+<h2>04 · Bayesian hierarchical scorecard</h2>
+<figure>
+<img src="figures/shrinkage_por_segmento.png" alt="Shrinkage by segment" loading="lazy">
+<figcaption>*Left: each segment&#x27;s estimated effect with and without pooling, against how</figcaption>
+</figure>
+<h2>05 · Monotonic constraints + conformal decisioning</h2>
+<figure>
+<img src="figures/auditoria_monotonia.png" alt="Monotonicity audit" loading="lazy">
+<figcaption>*The unconstrained model violates monotonicity for up to 97.6% of applicants on</figcaption>
+</figure>
+<figure>
+<img src="figures/cobertura_conforme.png" alt="Conformal coverage by class" loading="lazy">
+<figcaption>*Why the class-conditional (Mondrian) variant matters. Left: coverage tracks the</figcaption>
+</figure>
+<h2>06 · Optimal-binning scorecard</h2>
+<figure>
+<img src="figures/woe_por_metodo.png" alt="WOE by binning method" loading="lazy">
+<figcaption>*The same three variables, cut three ways. The DP produces a clean monotone WOE</figcaption>
+</figure>
+<figure>
+<img src="figures/psi_csi_por_vintage.png" alt="PSI and CSI by vintage" loading="lazy">
+<figcaption>*Left: PSI stays under 0.025 for eighteen stable vintages — no false alarms —</figcaption>
+</figure>
+<h2>07 · Fair lending bias audit</h2>
+<figure>
+<img src="figures/deteccion_de_proxies.png" alt="Proxy detection" loading="lazy">
+<figcaption>*Left: each feature&#x27;s group signal against its risk signal. Everything sits</figcaption>
+</figure>
+<h2>08 · Differentially private scoring</h2>
+<figure>
+<img src="figures/privacidad_vs_utilidad.png" alt="Privacy versus utility" loading="lazy">
+<figcaption>*Left: what privacy costs — AUC against ε, averaged over ten independent runs</figcaption>
+</figure>
+<figure>
+<img src="figures/detectabilidad_de_la_fuga.png" alt="Leak detectability" loading="lazy">
+<figcaption>*The same data asked properly: not &quot;how much leakage&quot; but &quot;can it be told apart</figcaption>
+</figure>
+<h2>09 · Reject inference &amp; selection bias</h2>
+<figure>
+<img src="figures/recuperacion_de_rho.png" alt="Recovery of rho" loading="lazy">
+<figcaption>*Grey is the truth. Without an exclusion restriction (red) the model invents</figcaption>
+</figure>
+<h2>10 · Through-the-cycle vs. point-in-time PD</h2>
+<figure>
+<img src="figures/capital_pit_vs_ttc.png" alt="PIT vs TTC capital" loading="lazy">
+<figcaption>*Grey: RWA density using the through-the-cycle PD — flat by construction.</figcaption>
+</figure>
+<h2>11 · Federated credit scoring</h2>
+<figure>
+<img src="figures/calibracion_por_banco.png" alt="Calibration by bank" loading="lazy">
+<figcaption>*Left: each bank&#x27;s own model, trained only on its own customers, applied to</figcaption>
+</figure>
+<footer>
+Pablo Reyes · <a href="https://github.com/Rxyxs/credit-risk-scoring-lab">github.com/Rxyxs/credit-risk-scoring-lab</a> · MIT<br><br>
+Every figure on this page is produced by the repository's pipeline. For the full method and its limitations, see the README.
+</footer>
+</div></body></html>
