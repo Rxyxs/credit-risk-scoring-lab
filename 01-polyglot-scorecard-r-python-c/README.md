@@ -363,9 +363,9 @@ substitute for one.
 | Tree ensemble | Random Forest | 0.723 | 0.447 | 0.352 | 0.282 |
 | Tree ensemble | XGBoost | 0.716 | 0.432 | 0.341 | 0.270 |
 | Tree ensemble | LightGBM | 0.709 | 0.418 | 0.332 | 0.265 |
-| Deep learning | MLP Swish + Focal Loss (best activation) | 0.715 | 0.430 | 0.340 | 0.268 |
-| Deep learning | MLP GELU + Focal Loss | 0.708 | 0.416 | 0.341 | 0.260 |
-| Deep learning | MLP ReLU + Focal Loss | 0.706 | 0.412 | 0.328 | 0.270 |
+| Deep learning | MLP Swish + Focal Loss | 0.714 | 0.427 | 0.338 | 0.242 |
+| Deep learning | MLP GELU + Focal Loss | 0.712 | 0.423 | 0.328 | 0.253 |
+| Deep learning | MLP ReLU + Focal Loss (chosen on validation) | 0.709 | 0.418 | 0.333 | 0.261 |
 
 ![Model comparison](outputs/plots/model_comparison.png)
 Racing view of the same training run — watch the R scorecard's lead over the MLP hold as focal loss falls and AUC climbs, epoch by epoch.
@@ -380,8 +380,21 @@ gradient on applicants that are hard to separate instead of diluting it
 across the 93.5% of "good" cases that are already easy to classify under
 the class imbalance. Three activations (ReLU, GELU, Swish/SiLU) are
 compared under the same optimizer (AdamW, lr=1e-3, weight_decay=1e-4)
-and the same 60 epochs; Swish consistently wins by a small but stable
-margin across all three discrimination metrics.
+and the same training protocol: validation is a stratified 15% of the
+training set (never the test set), each network trains at least 100
+epochs (at most 300), early stopping after that ends the run once
+validation loss has not improved for 15 epochs and restores the best
+epoch, and the full state is checkpointed every epoch so an interrupted
+run resumes.
+
+Training longer showed that this MLP has nothing more to learn: validation
+loss bottoms out at **epoch 7** for all three activations, so each run
+stops right after the 100-epoch minimum and returns the epoch-7 weights.
+The three activations tie on validation (AUC 0.664-0.666); ReLU is chosen
+there, and on test the three land within 0.005 AUC of each other
+(0.709-0.714), the same tier as the previous fixed 60-epoch run. The
+activation choice does not matter here, and neither does training
+longer.
 
 The R scorecard and the Python logistic-regression challenger essentially
 tie, both clearly ahead of the tree ensembles — a well-documented pattern

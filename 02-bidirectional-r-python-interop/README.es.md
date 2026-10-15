@@ -291,11 +291,13 @@ La Regresión Logística le gana a XGBoost aquí -- vale la pena decirlo directa
 
 | Modelo | AUC-ROC | KS | Gini |
 |---|---|---|---|
-| MLP-ReLU | 0,731 | 0,360 | 0,462 |
-| MLP-GELU | 0,734 | 0,378 | 0,469 |
-| **MLP-Swish** | **0,746** | **0,389** | **0,492** |
+| MLP-ReLU | 0,746 | 0,407 | 0,492 |
+| MLP-GELU | 0,748 | 0,403 | 0,496 |
+| **MLP-Swish** (elegida en validación) | **0,750** | **0,409** | **0,500** |
 
-Swish (SiLU) gana esta comparación -- su curva suave y no monótona le da una ventaja pequeña pero consistente sobre ReLU y GELU en las tres métricas bajo un protocolo idéntico. Ninguna de las tres variantes de MLP le gana al AUC-ROC de 0,750 de la Regresión Logística, reforzando el mismo hallazgo honesto de la comparación LogReg-vs-XGBoost de arriba: en este dataset de tamaño moderado y proceso generador logístico, que la forma funcional coincida gana por sobre la capacidad bruta del modelo.
+**Protocolo de entrenamiento**: la validación es un 15% estratificado del train (nunca el test). Cada red entrena al menos 100 épocas (máximo 300); desde ahí, early stopping corta cuando la loss de validación no mejora en 15 épocas y restaura la mejor época, y el estado completo se guarda en un checkpoint cada época para retomar una corrida interrumpida. La activación se elige con el AUC de validación, no con el de test.
+
+La loss de validación toca su mínimo temprano (época 12 para ReLU, 22 para GELU y Swish), así que las 60 épocas fijas anteriores sobreajustaban: restaurar la mejor época sube el AUC de test en las tres (ReLU 0,731 → 0,746, GELU 0,734 → 0,748, Swish 0,746 → 0,750). Swish se elige en validación (AUC 0,720 contra 0,719 de las otras dos, en la práctica un empate). El mejor MLP ahora empata el AUC-ROC de 0,750 de la Regresión Logística sin superarlo, reforzando el mismo hallazgo honesto de la comparación LogReg-vs-XGBoost de arriba: en este dataset de tamaño moderado y proceso generador logístico, que la forma funcional coincida gana por sobre la capacidad bruta del modelo.
 
 ![Comparación de activaciones MLP](output/figures/credit_mlp_activation_comparison.png)
 
@@ -305,7 +307,7 @@ Swish (SiLU) gana esta comparación -- su curva suave y no monótona le da una v
 |---|---|---|---|
 | **Regresión Logística** | **0,750** | **0,424** | **0,501** |
 | XGBoost | 0,711 | 0,338 | 0,422 |
-| MLP-Swish (mejor activación) | 0,746 | 0,389 | 0,492 |
+| MLP-Swish (elegida en validación) | 0,750 | 0,409 | 0,500 |
 
 ![Comparación de los tres modelos](output/figures/credit_three_model_comparison.png)
 
