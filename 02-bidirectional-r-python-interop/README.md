@@ -288,11 +288,13 @@ Logistic Regression beats XGBoost here -- worth stating plainly rather than assu
 
 | Model | AUC-ROC | KS | Gini |
 |---|---|---|---|
-| MLP-ReLU | 0.731 | 0.360 | 0.462 |
-| MLP-GELU | 0.734 | 0.378 | 0.469 |
-| **MLP-Swish** | **0.746** | **0.389** | **0.492** |
+| MLP-ReLU | 0.746 | 0.407 | 0.492 |
+| MLP-GELU | 0.748 | 0.403 | 0.496 |
+| **MLP-Swish** (chosen on validation) | **0.750** | **0.409** | **0.500** |
 
-Swish (SiLU) wins this comparison -- its smooth, non-monotonic curve gives it a small but consistent edge over ReLU and GELU across all three metrics under an identical protocol. None of the three MLP variants beats Logistic Regression's 0.750 AUC-ROC, reinforcing the same honest finding from the LogReg-vs-XGBoost comparison above: on this moderate-size, logistic-generating-process dataset, matching functional form beats raw model capacity.
+**Training protocol**: validation is a stratified 15% of the training set (never the test set). Each network trains at least 100 epochs (at most 300); after that, early stopping ends the run once validation loss has not improved for 15 epochs and restores the best epoch, and the full state is checkpointed every epoch so an interrupted run resumes. The activation is chosen on validation AUC, not on test.
+
+Validation loss bottoms out early (epoch 12 for ReLU, 22 for GELU and Swish), so the previous fixed 60 epochs were overfitting: restoring the best epoch lifts test AUC for all three (ReLU 0.731 → 0.746, GELU 0.734 → 0.748, Swish 0.746 → 0.750). Swish is chosen on validation (AUC 0.720 vs. 0.719 for the other two, effectively a tie). The best MLP now ties Logistic Regression's 0.750 AUC-ROC without beating it, reinforcing the same honest finding from the LogReg-vs-XGBoost comparison above: on this moderate-size, logistic-generating-process dataset, matching functional form beats raw model capacity.
 
 ![MLP activation comparison](output/figures/credit_mlp_activation_comparison.png)
 
@@ -302,7 +304,7 @@ Swish (SiLU) wins this comparison -- its smooth, non-monotonic curve gives it a 
 |---|---|---|---|
 | **Logistic Regression** | **0.750** | **0.424** | **0.501** |
 | XGBoost | 0.711 | 0.338 | 0.422 |
-| MLP-Swish (best activation) | 0.746 | 0.389 | 0.492 |
+| MLP-Swish (chosen on validation) | 0.750 | 0.409 | 0.500 |
 
 ![Three-model comparison](output/figures/credit_three_model_comparison.png)
 

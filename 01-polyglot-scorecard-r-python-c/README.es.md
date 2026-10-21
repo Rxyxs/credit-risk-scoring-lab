@@ -375,9 +375,9 @@ clasificacion transversal, no un sustituto de uno.
 | Ensamble de arboles | Random Forest | 0.723 | 0.447 | 0.352 | 0.282 |
 | Ensamble de arboles | XGBoost | 0.716 | 0.432 | 0.341 | 0.270 |
 | Ensamble de arboles | LightGBM | 0.709 | 0.418 | 0.332 | 0.265 |
-| Deep learning | MLP Swish + Focal Loss (mejor activacion) | 0.715 | 0.430 | 0.340 | 0.268 |
-| Deep learning | MLP GELU + Focal Loss | 0.708 | 0.416 | 0.341 | 0.260 |
-| Deep learning | MLP ReLU + Focal Loss | 0.706 | 0.412 | 0.328 | 0.270 |
+| Deep learning | MLP Swish + Focal Loss | 0.714 | 0.427 | 0.338 | 0.242 |
+| Deep learning | MLP GELU + Focal Loss | 0.712 | 0.423 | 0.328 | 0.253 |
+| Deep learning | MLP ReLU + Focal Loss (elegida en validacion) | 0.709 | 0.418 | 0.333 | 0.261 |
 
 ![Comparacion de modelos](outputs/plots/model_comparison.png)
 Vista en carrera del mismo entrenamiento — la ventaja del scorecard R sobre el MLP se mantiene mientras la focal loss baja y el AUC sube, epoca a epoca.
@@ -392,8 +392,20 @@ en los solicitantes dificiles de separar en vez de diluirlo en el 93.5%
 de casos "buenos" ya faciles de clasificar bajo el desbalance de clase.
 Se comparan tres funciones de activacion (ReLU, GELU, Swish/SiLU) bajo
 el mismo optimizador (AdamW, lr=1e-3, weight_decay=1e-4) y las mismas
-60 epocas; Swish gana consistentemente por margen pequeno pero estable
-en las tres metricas de discriminacion.
+mismo protocolo de entrenamiento: la validacion es un 15% estratificado
+del train (nunca el test), cada red entrena al menos 100 epocas (maximo
+300), desde ahi early stopping corta cuando la loss de validacion no
+mejora en 15 epocas y restaura la mejor epoca, y el estado completo se
+guarda en un checkpoint cada epoca para retomar una corrida interrumpida.
+
+Entrenar mas mostro que este MLP no tiene nada mas que aprender: la loss
+de validacion toca su minimo en la **epoca 7** para las tres
+activaciones, asi que cada corrida se detiene justo despues del minimo de
+100 epocas y devuelve los pesos de la epoca 7. Las tres activaciones
+empatan en validacion (AUC 0,664-0,666); ahi se elige ReLU, y en test las
+tres quedan a menos de 0,005 de AUC entre si (0,709-0,714), el mismo
+nivel que la corrida anterior de 60 epocas fijas. La activacion no
+importa aqui, y entrenar mas tampoco.
 
 El scorecard de R y el challenger de regresion logistica en Python
 practicamente empatan, ambos claramente por delante de los ensambles de

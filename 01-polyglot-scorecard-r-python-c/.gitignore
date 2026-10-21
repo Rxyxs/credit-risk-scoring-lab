@@ -31,6 +31,7 @@ outputs/models/*.dll
 outputs/models/*.exe
 outputs/models/score_bench
 outputs/models/*.pt
+outputs/models/checkpoints/
 outputs/models/*.json
 outputs/reports/*.json
 outputs/reports/*.csv

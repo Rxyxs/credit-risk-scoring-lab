@@ -11,6 +11,7 @@ output/models/*.rds
 output/tables/*.csv
 output/*.duckdb
 *.pt
+output/models/checkpoints/
 
 # output/figures/*.png se versiona a proposito (referenciado desde el README,
 # igual que outputs/plots en 01-polyglot-scorecard-r-python-c) -- no gitignored
