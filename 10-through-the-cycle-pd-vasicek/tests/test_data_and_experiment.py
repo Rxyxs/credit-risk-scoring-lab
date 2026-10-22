@@ -116,6 +116,7 @@ def test_capital_sube_en_anos_de_recesion(datos_chicos):
 
 
 def test_sesgo_de_granularidad_devuelve_dos_tamanos_por_grado():
-    tabla = sesgo_de_granularidad(seed=14)
+    tabla = sesgo_de_granularidad(seed=14, n_replicas=3)
     assert set(tabla["tamano"]) == {"chica", "grande"}
     assert len(tabla) == 2 * len(GRADOS)
+    assert {"rho_hat_mom", "rho_hat_mom_sin_n", "mae_mom", "mae_mom_sin_n"} <= set(tabla.columns)

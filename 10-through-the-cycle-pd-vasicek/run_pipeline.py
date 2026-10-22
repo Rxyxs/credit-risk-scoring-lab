@@ -55,11 +55,13 @@ def resumen():
 
     granularidad = res["sesgo_granularidad"]
     chico = [f for f in granularidad if f["tamano"] == "chica"]
-    err_mom = sum(abs(f["rho_hat_mom"] - f["rho_true"]) for f in chico) / len(chico)
-    err_asrf = sum(abs(f["rho_hat_asrf_limite"] - f["rho_true"]) for f in chico) / len(chico)
-    print(f"\nSesgo de granularidad, cartera chica (error absoluto medio en rho)")
-    print(f"  Metodo de momentos : {err_mom:.4f}")
-    print(f"  Limite ASRF        : {err_asrf:.4f}")
+    def mae(col):
+        return sum(f[col] for f in chico) / len(chico)
+    print(f"\nSesgo de granularidad, cartera chica (error absoluto medio en rho, "
+          f"{chico[0]['n_replicas']} ciclos por grado)")
+    print(f"  Momentos con N : {mae('mae_mom'):.4f}")
+    print(f"  Momentos sin N : {mae('mae_mom_sin_n'):.4f}")
+    print(f"  Limite ASRF    : {mae('mae_asrf_limite'):.4f}")
     print(f"\nReportes en {REPORTS_DIR}")
 
 

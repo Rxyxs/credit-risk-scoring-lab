@@ -10,7 +10,7 @@
 [![Vasicek](https://img.shields.io/badge/Vasicek-ASRF%20un%20factor-6A5ACD)](src/vasicek.py)
 [![Basel IRB](https://img.shields.io/badge/Basilea-formula%20de%20capital%20IRB-2C5F8A)](src/vasicek.py)
 [![SciPy](https://img.shields.io/badge/SciPy-CDF%20normal%20bivariada-8CAAE6?logo=scipy&logoColor=white)](https://scipy.org/)
-[![Tests](https://img.shields.io/badge/tests-41%20pasando-brightgreen?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/tests-46%20pasando-brightgreen?logo=pytest&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/licencia-MIT-lightgrey)](../LICENSE)
 
 </div>
@@ -55,7 +55,8 @@ cuantil, la formula regulatoria de correlacion de activos de Basilea, el
 ajuste de plazo, y el requerimiento de capital IRB completo. Dos
 estimadores independientes de correlacion de activos desde una serie
 observada de tasas de default -- una inversion por metodo de momentos
-(exacta para cualquier tamano de cartera) y un estimador de limite ASRF
+(exacta para cualquier tamano de cartera si se le da el tamano de las
+cohortes) y un estimador de limite ASRF
 granular (exacto solo cuando el tamano de cartera crece sin limite) --
 construidos a proposito para que discrepen donde el supuesto de base se
 rompe.
@@ -75,11 +76,11 @@ verificable contra el simulador y contra la regulacion a la vez:
 
 | Grado | rho verdadero | rho estimado (metodo de momentos) | Error |
 |---|---|---|---|
-| AAA-A | 0,2313 | 0,1772 | −0,0542 |
-| BBB | 0,2089 | 0,1789 | −0,0300 |
-| BB | 0,1641 | 0,1504 | −0,0137 |
-| B | 0,1277 | 0,1249 | −0,0028 |
-| CCC | 0,1201 | 0,1126 | −0,0075 |
+| AAA-A | 0,2313 | 0,1766 | −0,0547 |
+| BBB | 0,2089 | 0,1786 | −0,0303 |
+| BB | 0,1641 | 0,1502 | −0,0139 |
+| B | 0,1277 | 0,1248 | −0,0029 |
+| CCC | 0,1201 | 0,1125 | −0,0076 |
 
 ![Correlacion de activos por grado](outputs/plots/correlacion_por_grado.png)
 
@@ -105,8 +106,8 @@ cinco grados. Correlacion con la verdad: **0,985**.*
 
 *Gris: densidad de RWA usando la PD through-the-cycle -- plana por
 construccion, porque la PD que usa nunca cambia. Naranjo: densidad de RWA
-recalibrada cada ano con la PD point-in-time. Oscila entre **70,5% y
-243,9%** de la exposicion -- un rango de **173,5 puntos porcentuales** -- y
+recalibrada cada ano con la PD point-in-time. Oscila entre **70,4% y
+243,6%** de la exposicion -- un rango de **173,2 puntos porcentuales** -- y
 los picos caen exactamente en las dos recesiones marcadas. Misma cartera,
 mismos deudores, misma formula de Basilea; lo unico que cambio es que
 filosofia de PD la alimenta.*
@@ -116,11 +117,26 @@ filosofia de PD la alimenta.*
 ![Sesgo de granularidad](outputs/plots/sesgo_granularidad.png)
 
 *El limite ASRF supone que el riesgo idiosincratico se diversifica por
-completo -- cierto solo cuando el tamano de cartera crece sin limite. En una
-cartera de 200 deudores por cohorte, el error absoluto medio del estimador
-de limite ASRF entre grados es **0,216** -- confunde ruido muestral comun
-con riesgo sistematico. El estimador de momentos, exacto para cualquier
-tamano de cartera, se mantiene en **0,022** sobre los mismos datos.*
+completo -- cierto solo cuando el tamano de cartera crece sin limite.
+Promediando 200 ciclos simulados de 60 anos, en una cartera de 200 deudores
+por cohorte el error absoluto medio del estimador de limite ASRF entre
+grados es **0,241**: confunde ruido muestral comun con riesgo sistematico.
+El metodo de momentos se queda en **0,040**.*
+
+*Una version anterior de este modulo llamaba al metodo de momentos "exacto
+para cualquier tamano de cartera". No lo era: invertia la varianza de una
+cartera infinita, Phi_2 - PD^2, y dejaba fuera el ruido binomial de una
+cohorte finita, (PD - Phi_2)/N. Con el tamano de las cohortes, la cartera de
+200 deudores da ahora en promedio el mismo rho que la de 20.000 (a menos de
+0,010 en todos los grados). Sin el, la cartera chica agrega entre 0,006 y
+0,043 de correlacion que no existe, mas en los grados mas seguros, donde el
+ruido binomial es grande al lado de la parte sistematica. Su error absoluto
+medio (0,040) no es menor que el de la version sin corregir (0,038), porque
+en esos grados la correlacion inventada compensa por casualidad el sesgo a
+la baja del ciclo: la correccion da la estimacion correcta, no un error mas
+chico en este diseno. Lo que queda entre ambas y el rho verdadero (-0,03 en
+AAA-A, +0,02 en CCC, con los dos tamanos) no es granularidad: viene de 60
+anos de un ciclo persistente con dos recesiones elegidas a mano.*
 
 ### Verificar la formula contra una simulacion independiente
 
@@ -195,7 +211,7 @@ flowchart TB
 |---|---|
 | [`src/vasicek.py`](src/vasicek.py) | El modelo de un factor: PD condicional y su inversa exacta, CDF/PDF/cuantil cerrados de Vasicek, la formula regulatoria de correlacion de activos de Basilea, el ajuste de plazo, y el requerimiento de capital IRB completo. |
 | [`src/data_generator.py`](src/data_generator.py) | Una cartera de 30 anos y 5 grados bajo un factor sistematico compartido (un ciclo economico AR(1) gaussiano con dos recesiones marcadas elegidas como innovaciones extremas, no como choques sumados), con la correlacion verdadera de cada grado fijada en la propia formula de Basilea. |
-| [`src/correlation_estimation.py`](src/correlation_estimation.py) | Dos estimadores de correlacion de activos desde cero -- metodo de momentos (exacto para cualquier N) y limite ASRF (exacto solo cuando N -> infinito) -- mas la CDF normal bivariada que el primero necesita. |
+| [`src/correlation_estimation.py`](src/correlation_estimation.py) | Dos estimadores de correlacion de activos desde cero -- metodo de momentos (con el tamano de las cohortes, o el limite de cartera infinita sin el) y limite ASRF (exacto solo cuando N -> infinito) -- mas la CDF normal bivariada que el primero necesita. |
 | [`src/experiment.py`](src/experiment.py) | Recupera rho y el ciclo por grado, corre la comparacion de sesgo de granularidad, calcula el RWA de la cartera bajo las filosofias PIT y TTC a lo largo del ciclo, y verifica la distribucion cerrada contra un Monte Carlo independiente. |
 
 ## Como correrlo
@@ -206,7 +222,7 @@ venv\Scripts\activate            # Windows;  source venv/bin/activate en Linux/m
 pip install -r requirements.txt
 
 python run_pipeline.py           # todo end to end (~30 s)
-pytest -q                        # 41 tests
+pytest -q                        # 46 tests
 ```
 
 | Grafico | Que muestra |
@@ -219,7 +235,7 @@ pytest -q                        # 41 tests
 
 ## Tests
 
-41 tests (`pytest -q`). La distribucion cerrada de perdidas se verifica
+46 tests (`pytest -q`). La distribucion cerrada de perdidas se verifica
 directamente contra una simulacion de Monte Carlo de una cartera de 50.000
 deudores, no solo contra si misma; el par PD condicional / Z implicito se
 verifica como inversas exactas entre si; la identidad de la PD incondicional

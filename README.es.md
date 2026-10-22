@@ -116,7 +116,7 @@ Challenger, nadie lo corrio de vuelta por promocion todavia — y reporto
 | 07 | [`07-fair-lending-bias-audit`](07-fair-lending-bias-audit) | Auditoria de trato justo | Genero reconstruido con **AUC 0,768** | `pytest -q` |
 | 08 | [`08-differential-privacy-scoring`](08-differential-privacy-scoring) | Scoring con privacidad diferencial | ε=1 cuesta **18,4% de AUC** para esconder memorizacion | `pytest -q` |
 | 09 | [`09-reject-inference-selection-bias`](09-reject-inference-selection-bias) | Reject inference y sesgo de seleccion | ρ recuperado a **0,02** de la verdad con un instrumento | `pytest -q` |
-| 10 | [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) | PD through-the-cycle vs point-in-time | El capital PIT oscila **173,5 pp** de densidad de RWA | `pytest -q` |
+| 10 | [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) | PD through-the-cycle vs point-in-time | El capital PIT oscila **173,2 pp** de densidad de RWA | `pytest -q` |
 | 11 | [`11-federated-credit-scoring`](11-federated-credit-scoring) | Scoring crediticio federado | Solo-local sobreestima el riesgo nacional en **24,6 pp** | `pytest -q` |
 | 12 | [`12-drift-monitoring-psi-ks`](12-drift-monitoring-psi-ks) | Monitoreo de drift (PSI / KS) | PSI de `ingreso_mensual` **0,82** (rojo) en una corrida real | `pytest -q` |
 | 13 | [`13-feature-store-duckdb`](13-feature-store-duckdb) | Feature store sobre DuckDB | Hace upsert de snapshots de drift en `credit_features` | `pytest -q` |
@@ -280,7 +280,7 @@ flowchart LR
 | [07](#07--auditoria-de-trato-justo-en-credito) | Auditoria de equidad | El genero se reconstruye desde las features del modelo con **AUC 0,768** | Sacar el proxy empeoro la disparidad |
 | [08](#08--scoring-con-privacidad-diferencial) | Privacidad diferencial | Los canarios prueban memorizacion (**t = 44,8**); ε = 1 la vuelve indetectable | Ese presupuesto cuesta **18,4% del AUC** |
 | [09](#09--reject-inference-y-sesgo-de-seleccion) | Reject inference | El probit bivariado recupera ρ a **0,02** de la verdad con un instrumento de exclusion | Sin el, el mismo modelo falla por **0,36-0,44** -- a veces con el signo invertido |
-| [10](#10--pd-through-the-cycle-vs-point-in-time) | PD TTC vs PIT | El capital point-in-time oscila **173,5 puntos** de densidad de RWA en un ciclo | La linea through-the-cycle es plana por construccion -- una decision de modelamiento, no un hallazgo |
+| [10](#10--pd-through-the-cycle-vs-point-in-time) | PD TTC vs PIT | El capital point-in-time oscila **173,2 puntos** de densidad de RWA en un ciclo | La linea through-the-cycle es plana por construccion -- una decision de modelamiento, no un hallazgo |
 | [11](#11--scoring-crediticio-federado) | Scoring federado | FedAvg iguala la calibracion del oraculo centralizado (**+0,18 pp** de sesgo contra **+4,45 pp** de solo-local) | Un solo banco por si solo pone mal el precio del riesgo nacional por **24,6 puntos** -- y su AUC igual se ve bien |
 
 ---
@@ -716,7 +716,7 @@ antes de salir a corregir.
 
 ## 10 · PD through-the-cycle vs point-in-time
 
-**Carpeta:** [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) · 41 tests
+**Carpeta:** [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) · 46 tests
 
 **El problema.** El capital IRB de Basilea descansa en un modelo -- los
 deudores comparten exposicion a un ciclo economico comun, ademas de su
@@ -731,7 +731,8 @@ cuando las perdidas suben y el credito deberia seguir fluyendo.
 cero: PD condicional, la distribucion cerrada de perdidas, la formula
 regulatoria de correlacion de Basilea, y el requerimiento de capital IRB
 completo. Dos estimadores independientes de correlacion -- metodo de
-momentos (exacto para cualquier tamano de cartera) y el limite ASRF (exacto
+momentos (exacto para cualquier tamano de cartera si se le da el tamano de
+las cohortes) y el limite ASRF (exacto
 solo cuando el tamano crece sin limite) -- construidos a proposito para que
 discrepen donde el supuesto de granularidad se rompe.
 
@@ -739,15 +740,19 @@ discrepen donde el supuesto de granularidad se rompe.
 
 *Gris: densidad de RWA usando la PD through-the-cycle -- plana por
 construccion. Naranjo: la misma cartera, la misma formula de Basilea,
-recalibrada cada ano con la PD point-in-time. Oscila entre 70,5% y 243,9% de
+recalibrada cada ano con la PD point-in-time. Oscila entre 70,4% y 243,6% de
 la exposicion, y los picos caen exactamente en las dos recesiones marcadas.*
 
 **Que salio.** El ciclo economico se reconstruye desde nada mas que conteos
 agregados de default -- nunca observado directamente -- con **0,985** de
 correlacion contra la verdad. En una cartera de 200 deudores, el estimador
 de limite ASRF confunde ruido muestral ordinario con riesgo sistematico
-(error absoluto medio 0,216); el estimador de momentos, exacto para
-cualquier N, se mantiene en 0,022 sobre los mismos datos.
+(error absoluto medio 0,241 en 200 ciclos simulados, contra 0,040 del metodo
+de momentos). El metodo de momentos necesito una correccion para llegar
+ahi: antes invertia la varianza de una cartera infinita, lo que en una
+cartera de 200 deudores agrega hasta 0,043 de correlacion que no existe. Con
+el tamano de las cohortes, la cartera chica da ahora la misma estimacion que
+una de 20.000 a menos de 0,010.
 
 **La advertencia.** La propia formula de Basilea se verifico de forma
 estructural -- correlacion acotada, capital estrictamente creciente y lineal

@@ -4,13 +4,21 @@ una cartera -- sin haber observado nunca el factor sistematico.
 Dos estimadores, con supuestos distintos sobre el tamano de la cartera, y
 el proyecto los enfrenta a proposito:
 
-1. **Metodo de momentos (exacto para cualquier N).** Bajo el modelo de un
-   factor, la varianza de la tasa de default observada entre cohortes
-   tiene una expresion exacta que **no depende de cuantos deudores tenga
-   cada cohorte** -- Var(D) converge a `Phi_2(g,g;rho) - PD^2` conforme N
-   crece, pero la formula sale de la probabilidad conjunta de que dos
-   deudores cualesquiera caigan juntos, que es correcta para toda N.
-   Dada la varianza observada, se invierte esa ecuacion por busqueda de
+1. **Metodo de momentos (exacto para cualquier N, si se le da N).** Bajo
+   el modelo de un factor, la tasa de default de una cohorte de N
+   deudores tiene varianza
+
+       Var(D) = Var(p(Z)) + E[p(Z)(1 - p(Z))] / N
+              = (Phi_2(g,g;rho) - PD^2) + (PD - Phi_2(g,g;rho)) / N
+
+   El primer termino es el riesgo sistematico; el segundo es el ruido
+   binomial de una cohorte finita, que se va a cero solo cuando N crece.
+   Una version anterior de este modulo invertia solo el primer termino y
+   lo llamaba "exacto para cualquier N": eso es el limite de cartera
+   infinita, y con 200 deudores por cohorte sobreestima rho en los grados
+   donde el ruido binomial pesa (ver `sesgo_de_granularidad`). Ahora la
+   inversion incluye el segundo termino cuando se le pasa el tamano de
+   las cohortes. Dada la varianza observada, se invierte por busqueda de
    raiz.
 
 2. **Limite ASRF (exacto solo cuando N -> infinito).** La aproximacion
@@ -68,25 +76,48 @@ def bivariate_normal_cdf(a: float, b: float, rho: float, n_nodos: int = 48) -> f
     return float(np.clip(base + integral, 1e-15, 1.0 - 1e-15))
 
 
-def varianza_teorica_tasa_default(pd_ttc: float, rho: float) -> float:
-    """Var(D) exacta bajo el modelo de un factor: Phi_2(g, g; rho) - PD^2."""
+def _inverso_medio(n_por_cohorte) -> float:
+    """Promedio de 1/N entre cohortes (0 si no se da N: cartera infinita)."""
+    if n_por_cohorte is None:
+        return 0.0
+    n = np.asarray(n_por_cohorte, dtype=float)
+    if np.any(n < 1):
+        raise ValueError("cada cohorte necesita al menos un deudor")
+    return float(np.mean(1.0 / n))
+
+
+def varianza_teorica_tasa_default(pd_ttc: float, rho: float, n_por_cohorte=None) -> float:
+    """Var(D) bajo el modelo de un factor.
+
+    Sin `n_por_cohorte` devuelve el limite de cartera infinita,
+    Phi_2(g, g; rho) - PD^2. Con el tamano de cada cohorte (un numero o uno
+    por cohorte) suma el ruido binomial (PD - Phi_2) * promedio(1/N), que
+    es lo que dispersa la tasa observada aunque no haya factor sistematico.
+    """
     g = norm.ppf(pd_ttc)
-    return bivariate_normal_cdf(g, g, rho) - pd_ttc**2
+    phi2 = bivariate_normal_cdf(g, g, rho)
+    return (phi2 - pd_ttc**2) + (pd_ttc - phi2) * _inverso_medio(n_por_cohorte)
 
 
 def mom_asset_correlation(pd_ttc: float, varianza_observada: float,
-                          rho_min: float = 1e-4, rho_max: float = 0.999) -> float:
+                          rho_min: float = 1e-4, rho_max: float = 0.999,
+                          *, n_por_cohorte=None) -> float:
     """Invierte `varianza_teorica_tasa_default` para obtener rho.
 
     Es estrictamente creciente en rho (mas correlacion sistematica siempre
     dispersa mas la tasa de default entre cohortes), asi que la inversion
-    es un problema de una sola raiz bien definida.
+    es un problema de una sola raiz bien definida. Sin `n_por_cohorte`
+    supone cohortes infinitas, y con cohortes chicas atribuye el ruido
+    binomial a rho.
     """
     if varianza_observada <= 0:
         raise ValueError("la varianza observada debe ser positiva")
+    inv_n = _inverso_medio(n_por_cohorte)
+    g = norm.ppf(pd_ttc)
 
     def f(rho):
-        return varianza_teorica_tasa_default(pd_ttc, rho) - varianza_observada
+        phi2 = bivariate_normal_cdf(g, g, rho)
+        return (phi2 - pd_ttc**2) + (pd_ttc - phi2) * inv_n - varianza_observada
 
     v_min, v_max = f(rho_min), f(rho_max)
     if v_min > 0:

@@ -83,22 +83,24 @@ def plot_sesgo_granularidad():
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13.5, 5.4))
     x = np.arange(len(GRADOS))
-    ancho = 0.26
+    ancho = 0.2
     for ax, datos, titulo in [(ax1, chica, "Cartera CHICA (200 deudores/cohorte)"),
                               (ax2, grande, "Cartera GRANDE (20.000 deudores/cohorte)")]:
-        ax.bar(x - ancho, datos["rho_true"], ancho, color=GRIS, label="rho verdadero")
-        ax.bar(x, datos["rho_hat_mom"], ancho, color=AZUL,
-               label="Metodo de momentos\n(exacto para cualquier N)")
-        ax.bar(x + ancho, datos["rho_hat_asrf_limite"], ancho, color=ROJO,
+        ax.bar(x - 1.5 * ancho, datos["rho_true"], ancho, color=GRIS, label="rho verdadero")
+        ax.bar(x - 0.5 * ancho, datos["rho_hat_mom"], ancho, color=AZUL,
+               label="Momentos con N\n(incluye el ruido binomial)")
+        ax.bar(x + 0.5 * ancho, datos["rho_hat_mom_sin_n"], ancho, color=AZUL, alpha=0.45,
+               label="Momentos sin N\n(cartera infinita)")
+        ax.bar(x + 1.5 * ancho, datos["rho_hat_asrf_limite"], ancho, color=ROJO,
                label="Limite ASRF\n(exacto solo si N->infinito)")
         ax.set_xticks(x)
         ax.set_xticklabels(GRADOS)
-        ax.set_ylabel("rho estimado")
+        ax.set_ylabel(f"rho estimado (promedio de {int(datos['n_replicas'].min())} ciclos)")
         ax.set_title(titulo, fontsize=10)
         ax.legend(frameon=False, fontsize=7.5)
         ax.grid(alpha=0.25, axis="y")
-    fig.suptitle("El limite ASRF confunde ruido idiosincratico con riesgo sistematico\n"
-                 "cuando la cartera no es lo bastante granular", y=1.03)
+    fig.suptitle("Con cohortes chicas, el ruido binomial se lee como riesgo sistematico\n"
+                 "si el estimador no sabe cuantos deudores tiene cada cohorte", y=1.03)
     fig.tight_layout()
     _save(fig, "sesgo_granularidad.png")
 
