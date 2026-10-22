@@ -10,7 +10,7 @@
 [![Vasicek](https://img.shields.io/badge/Vasicek-ASRF%20single--factor-6A5ACD)](src/vasicek.py)
 [![Basel IRB](https://img.shields.io/badge/Basel-IRB%20capital%20formula-2C5F8A)](src/vasicek.py)
 [![SciPy](https://img.shields.io/badge/SciPy-bivariate%20normal%20CDF-8CAAE6?logo=scipy&logoColor=white)](https://scipy.org/)
-[![Tests](https://img.shields.io/badge/tests-41%20passing-brightgreen?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/tests-46%20passing-brightgreen?logo=pytest&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](../LICENSE)
 
 </div>
@@ -52,7 +52,8 @@ Every piece of the Vasicek/ASRF framework, from scratch: the conditional
 its quantile, Basel's regulatory asset-correlation formula, the maturity
 adjustment, and the full IRB capital requirement. Two independent estimators
 of asset correlation from an observed default-rate time series — a
-method-of-moments inversion (exact for any portfolio size) and a granular
+method-of-moments inversion (exact for any portfolio size once it is given
+the cohort size) and a granular
 ASRF-limit estimator (exact only as the portfolio size grows without
 bound) — deliberately built to disagree where the underlying assumption
 breaks.
@@ -72,11 +73,11 @@ regulation at once:
 
 | Grade | True ρ | Estimated ρ (method of moments) | Error |
 |---|---|---|---|
-| AAA-A | 0.2313 | 0.1772 | −0.0542 |
-| BBB | 0.2089 | 0.1789 | −0.0300 |
-| BB | 0.1641 | 0.1504 | −0.0137 |
-| B | 0.1277 | 0.1249 | −0.0028 |
-| CCC | 0.1201 | 0.1126 | −0.0075 |
+| AAA-A | 0.2313 | 0.1766 | −0.0547 |
+| BBB | 0.2089 | 0.1786 | −0.0303 |
+| BB | 0.1641 | 0.1502 | −0.0139 |
+| B | 0.1277 | 0.1248 | −0.0029 |
+| CCC | 0.1201 | 0.1125 | −0.0076 |
 
 ![Asset correlation by grade](outputs/plots/correlacion_por_grado.png)
 
@@ -102,8 +103,8 @@ default rate, averaged across the five grades. Correlation with the truth:
 
 *Grey: RWA density using the through-the-cycle PD — flat by construction,
 because the PD it uses never changes. Orange: RWA density recalibrated every
-year with the point-in-time PD. It swings from **70.5% to 243.9%** of
-exposure — a **173.5 percentage-point** range — and the peaks land exactly
+year with the point-in-time PD. It swings from **70.4% to 243.6%** of
+exposure — a **173.2 percentage-point** range — and the peaks land exactly
 on the two marked recessions. Same portfolio, same obligors, same Basel
 formula; the only thing that changed is which PD philosophy feeds it.*
 
@@ -112,11 +113,26 @@ formula; the only thing that changed is which PD philosophy feeds it.*
 ![Granularity bias](outputs/plots/sesgo_granularidad.png)
 
 *The ASRF limit assumes idiosyncratic risk fully diversifies away — true
-only as portfolio size grows without bound. On a 200-obligor-per-cohort
-portfolio, the ASRF-limit estimator's mean absolute error across grades is
-**0.216** — it mistakes ordinary sampling noise for systematic risk. The
-method-of-moments estimator, exact for any portfolio size, holds at
-**0.022** on the same data.*
+only as portfolio size grows without bound. Averaged over 200 simulated
+60-year cycles, on a 200-obligor-per-cohort portfolio the ASRF-limit
+estimator's mean absolute error across grades is **0.241**: it mistakes
+ordinary sampling noise for systematic risk. The method of moments stays at
+**0.040**.*
+
+*An earlier version of this module called the method of moments "exact for
+any portfolio size". It was not: it inverted the variance of an infinite
+portfolio, Φ₂ − PD², and left out the binomial noise of a finite cohort,
+(PD − Φ₂)/N. Given the cohort size, the 200-obligor book now gives on
+average the same ρ as the 20,000-obligor one (within 0.010 in every grade).
+Without it, the small book adds between 0.006 and 0.043 of correlation that
+does not exist, the most in the safest grades, where binomial noise is large
+next to the systematic part. Its mean absolute error (0.040) is not lower
+than the uncorrected version's (0.038), because in those grades the spurious
+correlation happens to offset the cycle's downward pull: the fix gives the
+right estimate, not a smaller error in this design. What remains between
+both and the true ρ (−0.03 in AAA-A, +0.02 in CCC, at both sizes) is not
+granularity: it comes from 60 years of a persistent cycle with two
+hand-picked recessions.*
 
 ### Verifying the formula against an independent simulation
 
@@ -186,7 +202,7 @@ flowchart TB
 |---|---|
 | [`src/vasicek.py`](src/vasicek.py) | The single-factor model: conditional PD and its exact inverse, the closed-form Vasicek loss CDF/PDF/quantile, Basel's regulatory asset-correlation formula, the maturity adjustment, and the full IRB capital requirement. |
 | [`src/data_generator.py`](src/data_generator.py) | A 30-year, 5-grade portfolio under one shared systematic factor (a Gaussian AR(1) business cycle with two marked recessions chosen as extreme innovations, not added shocks), with each grade's true correlation set to Basel's own formula. |
-| [`src/correlation_estimation.py`](src/correlation_estimation.py) | Two from-scratch asset-correlation estimators — method of moments (exact for any N) and the ASRF limit (exact only as N → ∞) — plus the bivariate normal CDF the first one needs. |
+| [`src/correlation_estimation.py`](src/correlation_estimation.py) | Two from-scratch asset-correlation estimators — method of moments (with the cohort size, or the infinite-portfolio limit without it) and the ASRF limit (exact only as N → ∞) — plus the bivariate normal CDF the first one needs. |
 | [`src/experiment.py`](src/experiment.py) | Recovers ρ and the cycle per grade, runs the granularity-bias comparison, computes portfolio RWA under PIT vs. TTC philosophies across the cycle, and verifies the closed-form distribution against an independent Monte Carlo. |
 
 ## Running it
@@ -197,7 +213,7 @@ venv\Scripts\activate            # Windows;  source venv/bin/activate on Linux/m
 pip install -r requirements.txt
 
 python run_pipeline.py           # everything end to end (~30 s)
-pytest -q                        # 41 tests
+pytest -q                        # 46 tests
 ```
 
 | Chart | Shows |
@@ -210,7 +226,7 @@ pytest -q                        # 41 tests
 
 ## Tests
 
-41 tests (`pytest -q`). The closed-form loss distribution is checked directly
+46 tests (`pytest -q`). The closed-form loss distribution is checked directly
 against Monte Carlo simulation of a 50,000-obligor portfolio, not just against
 itself; the conditional-PD/implied-Z pair is checked to be exact inverses of
 each other; the unconditional-PD identity (E_Z[PD(Z)] = PD_ttc, verified by

@@ -111,7 +111,7 @@ was trained, nobody ran it back through promotion yet — and reported
 | 07 | [`07-fair-lending-bias-audit`](07-fair-lending-bias-audit) | Fair lending bias audit | Gender reconstructed at **AUC 0.768** | `pytest -q` |
 | 08 | [`08-differential-privacy-scoring`](08-differential-privacy-scoring) | Differentially private scoring | ε=1 costs **18.4% of AUC** to hide memorisation | `pytest -q` |
 | 09 | [`09-reject-inference-selection-bias`](09-reject-inference-selection-bias) | Reject inference & selection bias | ρ recovered to **0.02** of truth with an instrument | `pytest -q` |
-| 10 | [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) | Through-the-cycle vs. point-in-time PD | PIT capital swings **173.5 pp** of RWA density | `pytest -q` |
+| 10 | [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) | Through-the-cycle vs. point-in-time PD | PIT capital swings **173.2 pp** of RWA density | `pytest -q` |
 | 11 | [`11-federated-credit-scoring`](11-federated-credit-scoring) | Federated credit scoring | Local-only misprices national risk by **24.6 pp** | `pytest -q` |
 | 12 | [`12-drift-monitoring-psi-ks`](12-drift-monitoring-psi-ks) | Drift monitoring (PSI / KS) | `ingreso_mensual` PSI **0.82** (red) in a real run | `pytest -q` |
 | 13 | [`13-feature-store-duckdb`](13-feature-store-duckdb) | Feature store on DuckDB | Upserts drift snapshots into `credit_features` | `pytest -q` |
@@ -266,7 +266,7 @@ flowchart LR
 | [07](#07--fair-lending-bias-audit) | Fair lending audit | Gender reconstructed from the model's own features at **AUC 0.768** | Dropping the proxy made the disparity **worse** |
 | [08](#08--differentially-private-scoring) | Differential privacy | Canaries prove memorisation (**t = 44.8**); ε = 1 makes it undetectable | That budget costs **18.4% of AUC** |
 | [09](#09--reject-inference--selection-bias) | Reject inference | Bivariate probit recovers ρ to **0.02** of the truth with an exclusion instrument | Without one, the same model is off by **0.36–0.44** — sometimes the wrong sign |
-| [10](#10--through-the-cycle-vs-point-in-time-pd) | TTC vs. PIT PD | Point-in-time capital swings **173.5 points** of RWA density across one cycle | The through-the-cycle line is flat by construction — a modelling choice, not a finding |
+| [10](#10--through-the-cycle-vs-point-in-time-pd) | TTC vs. PIT PD | Point-in-time capital swings **173.2 points** of RWA density across one cycle | The through-the-cycle line is flat by construction — a modelling choice, not a finding |
 | [11](#11--federated-credit-scoring) | Federated scoring | FedAvg matches the centralized oracle's calibration (**+0.18 pp** bias vs. **+4.45 pp** local-only) | One bank alone misprices national risk by **24.6 points** — and its AUC still looks fine |
 
 ---
@@ -677,7 +677,7 @@ specific to MNAR, and the two need to be told apart before reaching for a fix.
 
 ## 10 · Through-the-cycle vs. point-in-time PD
 
-**Folder:** [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) · 41 tests
+**Folder:** [`10-through-the-cycle-pd-vasicek`](10-through-the-cycle-pd-vasicek) · 46 tests
 
 **The problem.** Basel's IRB capital formula rests on one model — obligors
 share exposure to a common business cycle, plus their own luck — and draws a
@@ -690,7 +690,8 @@ losses are rising and lending should keep flowing.
 **The method.** The Vasicek single-factor (ASRF) model built from scratch:
 conditional PD, the closed-form loss distribution, Basel's regulatory
 correlation formula, and the full IRB capital requirement. Two independent
-correlation estimators — method of moments (exact for any portfolio size) and
+correlation estimators — method of moments (exact for any portfolio size once it is given the cohort
+size) and
 the ASRF limit (exact only as size grows without bound) — deliberately built
 to disagree where the granularity assumption breaks.
 
@@ -698,15 +699,18 @@ to disagree where the granularity assumption breaks.
 
 *Grey: RWA density using the through-the-cycle PD — flat by construction.
 Orange: the same portfolio, the same Basel formula, recalibrated every year
-with the point-in-time PD. It swings from 70.5% to 243.9% of exposure, and
+with the point-in-time PD. It swings from 70.4% to 243.6% of exposure, and
 the peaks land exactly on the two marked recessions.*
 
 **What came out.** The business cycle is reconstructed from nothing but
 aggregate default counts — never observed directly — at **0.985** correlation
 with the truth. On a 200-obligor portfolio, the ASRF-limit correlation
 estimator mistakes ordinary sampling noise for systematic risk (mean absolute
-error 0.216); the method-of-moments estimator, exact for any N, holds at
-0.022 on the same data.
+error 0.241 over 200 simulated cycles, against 0.040 for the method of
+moments). The method of moments needed a fix to get there: it used to invert
+the variance of an infinite portfolio, which on a 200-obligor book adds up to
+0.043 of correlation that does not exist. Given the cohort size, the small
+book now gives the same estimate as a 20,000-obligor one to within 0.010.
 
 **The caveat.** Basel's own formula was verified structurally — bounded
 correlation, strictly increasing and LGD-linear capital — not against an

@@ -90,10 +90,54 @@ def test_metodo_de_momentos_le_gana_al_limite_asrf_en_cartera_chica():
     pd_ttc, rho_true = 0.02, 0.15
     tasas = _simular_serie(pd_ttc, rho_true, n_cartera=150, t_anios=500, seed=4)
 
-    rho_mom = mom_asset_correlation(pd_ttc, float(tasas.var(ddof=1)))
+    rho_mom = mom_asset_correlation(pd_ttc, float(tasas.var(ddof=1)), n_por_cohorte=150)
     rho_asrf = asrf_limit_correlation(tasas)
 
     assert abs(rho_mom - rho_true) < abs(rho_asrf - rho_true)
+
+
+def test_varianza_sin_n_es_el_limite_de_cartera_infinita():
+    pd_ttc, rho = 0.02, 0.15
+    g = norm.ppf(pd_ttc)
+    esperado = bivariate_normal_cdf(g, g, rho) - pd_ttc**2
+    assert varianza_teorica_tasa_default(pd_ttc, rho) == pytest.approx(esperado, rel=1e-12)
+    assert varianza_teorica_tasa_default(pd_ttc, rho, n_por_cohorte=10**12) == pytest.approx(esperado, rel=1e-6)
+
+
+def test_varianza_sin_correlacion_es_la_binomial():
+    """Sin factor sistematico solo queda el ruido de una cohorte finita."""
+    pd_ttc, n = 0.05, 200
+    got = varianza_teorica_tasa_default(pd_ttc, 1e-6, n_por_cohorte=n)
+    assert got == pytest.approx(pd_ttc * (1 - pd_ttc) / n, rel=1e-3)
+
+
+def test_cohortes_de_distinto_tamano_usan_el_promedio_de_1_sobre_n():
+    a = varianza_teorica_tasa_default(0.05, 0.1, n_por_cohorte=[100, 400])
+    b = varianza_teorica_tasa_default(0.05, 0.1, n_por_cohorte=1 / np.mean([1 / 100, 1 / 400]))
+    assert a == pytest.approx(b, rel=1e-12)
+
+
+def test_con_cohortes_chicas_solo_el_estimador_con_n_es_insesgado():
+    """El hallazgo que corrigio este modulo: invertir solo Phi_2 - PD^2 con
+    200 deudores por cohorte le atribuye el ruido binomial a rho."""
+    pd_ttc, rho, n, anios = 0.055, 0.128, 200, 60
+    rng = np.random.default_rng(11)
+    umbral = norm.ppf(pd_ttc)
+    con_n, sin_n = [], []
+    for _ in range(300):
+        z = rng.normal(size=anios)
+        p = norm.cdf((umbral - np.sqrt(rho) * z) / np.sqrt(1 - rho))
+        tasas = rng.binomial(n, p) / n
+        pd_hat, var = float(tasas.mean()), float(tasas.var(ddof=1))
+        con_n.append(mom_asset_correlation(pd_hat, var, n_por_cohorte=n))
+        sin_n.append(mom_asset_correlation(pd_hat, var))
+    assert abs(np.mean(con_n) - rho) < 0.006
+    assert np.mean(sin_n) - rho > 0.008
+
+
+def test_tamano_de_cohorte_invalido_falla():
+    with pytest.raises(ValueError):
+        mom_asset_correlation(0.02, 0.001, n_por_cohorte=0)
 
 
 def test_varianza_observada_no_positiva_falla():

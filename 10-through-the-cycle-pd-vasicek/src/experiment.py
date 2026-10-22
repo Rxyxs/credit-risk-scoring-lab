@@ -10,10 +10,11 @@ Cinco piezas:
    correlacion verdadera (que por diseno coincide con la formula de
    Basilea evaluada en la PD de cada grado).
 2. **El sesgo de granularidad**: repetir la recuperacion de rho con una
-   cartera mucho mas chica (200 deudores por cohorte en vez de 20.000) y
-   con dos estimadores -- el de momentos (exacto para cualquier N) y el
-   limite ASRF (exacto solo cuando N -> infinito) -- para mostrar cuando
-   confundir ruido idiosincratico con riesgo sistematico im porta.
+   cartera mucho mas chica (200 deudores por cohorte en vez de 20.000),
+   muchas veces, con tres estimadores -- el de momentos con el tamano de
+   las cohortes, el de momentos sin el (limite de cartera infinita) y el
+   limite ASRF -- para mostrar cuando confundir ruido idiosincratico con
+   riesgo sistematico importa.
 3. **Recuperar el ciclo economico** Z_t a partir de las tasas de default
    agregadas, sin haberlo visto nunca, y compararlo contra el verdadero.
 4. **PIT vs TTC**: la PD condicional al ciclo (la que ve un modelo
@@ -52,6 +53,7 @@ PESO_CARTERA = {"AAA-A": 0.15, "BBB": 0.30, "BB": 0.30, "B": 0.18, "CCC": 0.07}
 EAD_TOTAL_CLP = 500_000_000_000.0     # 500.000 millones, orden de magnitud de un banco mediano
 
 N_CHICO = 200                          # cartera "poco granular" para el sesgo de granularidad
+N_REPLICAS_GRANULARIDAD = 200          # ciclos de 60 anos por grado y tamano
 N_REPLICAS_MC = 4000                   # replicas para verificar la formula cerrada
 
 
@@ -62,7 +64,7 @@ def estimar_por_grado(cohortes: pd.DataFrame) -> pd.DataFrame:
         sub = cohortes[cohortes["grado"] == g]
         pd_hat = float(sub["tasa_default_observada"].mean())
         var_obs = float(sub["tasa_default_observada"].var(ddof=1))
-        rho_hat = mom_asset_correlation(pd_hat, var_obs)
+        rho_hat = mom_asset_correlation(pd_hat, var_obs, n_por_cohorte=sub["n_obligores"].to_numpy())
         filas.append({
             "grado": g,
             "pd_ttc_true": PD_TTC_TRUE[g],
@@ -74,11 +76,19 @@ def estimar_por_grado(cohortes: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(filas)
 
 
-def sesgo_de_granularidad(seed: int = 123) -> pd.DataFrame:
-    """Repite la estimacion con una cartera chica: MOM vs limite ASRF."""
+def sesgo_de_granularidad(seed: int = 123, n_replicas: int = N_REPLICAS_GRANULARIDAD) -> pd.DataFrame:
+    """Repite la estimacion con una cartera chica y una grande, muchas veces.
+
+    Tres estimadores sobre las mismas series: momentos con el tamano de las
+    cohortes, momentos sin el (limite de cartera infinita, como estaba antes
+    este modulo) y el limite ASRF. Una sola serie de 60 anos no alcanza para
+    separar sesgo de ruido, asi que se reportan el promedio y el error
+    absoluto medio sobre `n_replicas` ciclos. Dado el factor Z_t, los
+    defaults de una cohorte son Binomial(N, p(Z_t)): es la misma
+    distribucion que simular deudor por deudor, sin el costo.
+    """
     rng = np.random.default_rng(seed)
     n_anos = 60                        # mas anos para que la comparacion no sea ruido puro
-    z = simular_ciclo(n_anos, rng)
 
     filas = []
     for g in GRADOS:
@@ -87,20 +97,27 @@ def sesgo_de_granularidad(seed: int = 123) -> pd.DataFrame:
         umbral = norm.ppf(pd_ttc)
 
         for n_cartera, etiqueta in [(N_CHICO, "chica"), (20_000, "grande")]:
-            tasas = np.empty(n_anos)
-            for t in range(n_anos):
-                eps = rng.normal(size=n_cartera)
-                x = np.sqrt(rho) * z[t] + np.sqrt(1.0 - rho) * eps
-                tasas[t] = np.mean(x < umbral)
+            est = {"mom": [], "mom_sin_n": [], "asrf": []}
+            for _ in range(n_replicas):
+                z = simular_ciclo(n_anos, rng)
+                p = norm.cdf((umbral - np.sqrt(rho) * z) / np.sqrt(1.0 - rho))
+                tasas = rng.binomial(n_cartera, p) / n_cartera
+                pd_hat = max(float(np.mean(tasas)), 1e-4)
+                var_obs = float(np.var(tasas, ddof=1))
+                if var_obs <= 0:
+                    continue
+                est["mom"].append(mom_asset_correlation(pd_hat, var_obs, n_por_cohorte=n_cartera))
+                est["mom_sin_n"].append(mom_asset_correlation(pd_hat, var_obs))
+                est["asrf"].append(asrf_limit_correlation(tasas))
 
-            pd_hat = float(np.mean(tasas))
-            var_obs = float(np.var(tasas, ddof=1))
-            rho_mom = mom_asset_correlation(max(pd_hat, 1e-4), var_obs)
-            rho_asrf = asrf_limit_correlation(tasas)
-            filas.append({
-                "grado": g, "n_por_cohorte": n_cartera, "tamano": etiqueta,
-                "rho_true": rho, "rho_hat_mom": rho_mom, "rho_hat_asrf_limite": rho_asrf,
-            })
+            fila = {"grado": g, "n_por_cohorte": n_cartera, "tamano": etiqueta,
+                    "rho_true": rho, "n_replicas": len(est["mom"])}
+            for clave, nombre in [("mom", "rho_hat_mom"), ("mom_sin_n", "rho_hat_mom_sin_n"),
+                                  ("asrf", "rho_hat_asrf_limite")]:
+                valores = np.asarray(est[clave])
+                fila[nombre] = float(valores.mean())
+                fila[nombre.replace("rho_hat", "mae")] = float(np.abs(valores - rho).mean())
+            filas.append(fila)
     return pd.DataFrame(filas)
 
 
@@ -232,16 +249,16 @@ def main():
     print(f"  Correlacion con el Z verdadero: {corr_ciclo:.4f}")
     print(f"  RMSE                          : {rmse_ciclo:.4f}")
 
-    print(f"\nSesgo de granularidad (cartera chica de {N_CHICO} deudores vs 20.000)")
-    chica = granularidad[granularidad["tamano"] == "chica"]
-    grande = granularidad[granularidad["tamano"] == "grande"]
-    print(f"  {'grado':<8} {'rho real':>9} {'MOM chica':>10} {'ASRF chica':>11} "
-          f"{'MOM grande':>11} {'ASRF grande':>12}")
-    for g in GRADOS:
-        c, gr = chica[chica["grado"] == g].iloc[0], grande[grande["grado"] == g].iloc[0]
-        print(f"  {g:<8} {c['rho_true']:>9.4f} {c['rho_hat_mom']:>10.4f} "
-              f"{c['rho_hat_asrf_limite']:>11.4f} {gr['rho_hat_mom']:>11.4f} "
-              f"{gr['rho_hat_asrf_limite']:>12.4f}")
+    print(f"\nSesgo de granularidad (promedio de {N_REPLICAS_GRANULARIDAD} ciclos; "
+          f"cartera chica de {N_CHICO} deudores vs 20.000)")
+    print(f"  {'grado':<8} {'tamano':<7} {'rho real':>9} {'MOM con N':>10} {'MOM sin N':>10} {'ASRF':>8}")
+    for _, f in granularidad.iterrows():
+        print(f"  {f['grado']:<8} {f['tamano']:<7} {f['rho_true']:>9.4f} {f['rho_hat_mom']:>10.4f} "
+              f"{f['rho_hat_mom_sin_n']:>10.4f} {f['rho_hat_asrf_limite']:>8.4f}")
+    for tam in ("chica", "grande"):
+        sub = granularidad[granularidad["tamano"] == tam]
+        print(f"  error absoluto medio, cartera {tam}: MOM con N {sub['mae_mom'].mean():.4f} | "
+              f"MOM sin N {sub['mae_mom_sin_n'].mean():.4f} | ASRF {sub['mae_asrf_limite'].mean():.4f}")
 
     print(f"\nDensidad de RWA (RWA / exposicion), PIT vs TTC, {len(GRADOS)} grados")
     print(f"  TTC: estable en {reporte['capital']['densidad_rwa_ttc_promedio_pct']:.2f}% "
