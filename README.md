@@ -291,6 +291,10 @@ not recoveries on **621,022 real Lending Club loans** (36-month, issued
 | Asset correlation of a rating grade (10) | 0.12-0.24 | 0.00-0.06 | far smaller |
 | Retraining trigger (12, 22) | fires on the planted drift | fires on AUC every quarter, never on PSI, and misses a 2.5-point PD understatement | misses the real change |
 
+![Model comparison on the real book](27-real-portfolio-lending-club/outputs/plots/comparacion_modelos.png)
+
+*AUC on the 2015 loans for models fitted on 2007-2013. The four binnings tie, gradient boosting beats the scorecard, the monotonic constraint costs nothing, and Lending Club's own sub-grade, priced with the full credit report, beats them all.*
+
 ---
 
 ## Techniques 01–11, in detail

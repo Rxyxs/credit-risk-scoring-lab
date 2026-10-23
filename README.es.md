@@ -307,6 +307,10 @@ laboratorio, ajustado con 2007-2013 y probado con 2015:
 | Correlacion de activos de un grado (10) | 0,12-0,24 | 0,00-0,06 | mucho menor |
 | Gatillo de reentrenamiento (12, 22) | se dispara con el drift plantado | se dispara por AUC todos los trimestres, nunca por PSI, y no ve una PD subestimada en 2,5 puntos | no ve el cambio real |
 
+![Comparacion de modelos en la cartera real](27-real-portfolio-lending-club/outputs/plots/comparacion_modelos.png)
+
+*AUC en los creditos de 2015 de modelos ajustados con 2007-2013. Los cuatro binnings empatan, el gradient boosting le gana al scorecard, la restriccion monotona no cuesta nada, y el sub-grado de Lending Club, que tenia el informe de credito completo, les gana a todos.*
+
 ---
 
 ## Tecnicas 01-11, en detalle
