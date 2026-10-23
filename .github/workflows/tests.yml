@@ -39,6 +39,7 @@ jobs:
           - 24-model-lineage-governance
           - 25-api-inference-service
           - 26-lab-summary-dashboard
+          - 27-real-portfolio-lending-club
     defaults:
       run:
         working-directory: ${{ matrix.folder }}

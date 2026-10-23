@@ -5,7 +5,7 @@
 **Una plataforma MLOps de circuito cerrado para riesgo crediticio, no un cuaderno de modelos: once técnicas estadisticas desde cero para la pregunta de scoring en si, conectadas a quince mas que detectan drift, reentrenan, despliegan, prueban en canary, conmutan, monitorean desempeño realizado, y auditan todo el sistema — con honestidad, incluso cuando el circuito se disparo y nadie lo cerro todavia.**
 
 [![tests](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml/badge.svg)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
-[![CI](https://img.shields.io/badge/CI-29%2F29%20jobs%20passing-brightgreen?logo=githubactions&logoColor=white)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
+[![CI](https://img.shields.io/badge/CI-30%2F30%20jobs%20passing-brightgreen?logo=githubactions&logoColor=white)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![R](https://img.shields.io/badge/R-4.4-276DC3?logo=r&logoColor=white)](https://www.r-project.org/)
 [![C](https://img.shields.io/badge/C-MSVC-A8B9CC?logo=c&logoColor=white)](https://es.wikipedia.org/wiki/C_(lenguaje_de_programaci%C3%B3n))
@@ -54,6 +54,12 @@ los datos se simulan desde un proceso conocido en la 01–11, y por eso la
 12–26 se construyeron corriendo la cadena completa de punta a punta —
 generando drift real, snapshots reales, cutover reales — en vez de confiar
 solo en los fixtures sembrados de una suite de pruebas.
+
+**La tecnica 27** toma despues las afirmaciones que no necesitan una verdad
+plantada y las verifica sobre una cartera real: 621.022 creditos de Lending
+Club, pasados por el propio codigo del laboratorio. Algunas sobreviven, otras
+se reducen a ruido y una se da vuelta;
+[la tabla esta mas abajo](#sobre-una-cartera-real-que-sobrevivio).
 
 ## Arquitectura: cinco fases, de punta a punta
 
@@ -133,6 +139,7 @@ Challenger, nadie lo corrio de vuelta por promocion todavia — y reporto
 | 24 | [`24-model-lineage-governance`](24-model-lineage-governance) | Linaje de modelos y gobernanza | Trazado de dos saltos: `champion_model.pkl` → `active_shadow_model.pkl` → `shadow_model_<timestamp>.pkl` | `pytest -q` |
 | 25 | [`25-api-inference-service`](25-api-inference-service) | API de inferencia en tiempo real | `POST /predict`: `503` no `500` sin Champion, `400` no `422` ante input invalido | `pytest -v` |
 | 26 | [`26-lab-summary-dashboard`](26-lab-summary-dashboard) | Panel de resumen del laboratorio | Audita las otras 25 en un solo veredicto `HEALTHY`/`DEGRADED` | `pytest -q` |
+| 27 | [`27-real-portfolio-lending-club`](27-real-portfolio-lending-club) | El laboratorio sobre una cartera real | 621.022 creditos de Lending Club: la restriccion monotona sigue siendo gratis, el scorecard ya no gana | `pytest -q` |
 
 ## Hallazgos de nivel Staff
 
@@ -282,6 +289,23 @@ flowchart LR
 | [09](#09--reject-inference-y-sesgo-de-seleccion) | Reject inference | El probit bivariado recupera ρ a **0,02** de la verdad con un instrumento de exclusion | Sin el, el mismo modelo falla por **0,36-0,44** -- a veces con el signo invertido |
 | [10](#10--pd-through-the-cycle-vs-point-in-time) | PD TTC vs PIT | El capital point-in-time oscila **173,2 puntos** de densidad de RWA en un ciclo | La linea through-the-cycle es plana por construccion -- una decision de modelamiento, no un hallazgo |
 | [11](#11--scoring-crediticio-federado) | Scoring federado | FedAvg iguala la calibracion del oraculo centralizado (**+0,18 pp** de sesgo contra **+4,45 pp** de solo-local) | Un solo banco por si solo pone mal el precio del riesgo nacional por **24,6 puntos** -- y su AUC igual se ve bien |
+
+### Sobre una cartera real: que sobrevivio
+
+[La tecnica 27](27-real-portfolio-lending-club) corre las afirmaciones de
+arriba que no son recuperaciones sobre **621.022 creditos reales de Lending
+Club** (a 36 meses, otorgados entre 2007 y 2015), con el propio codigo del
+laboratorio, ajustado con 2007-2013 y probado con 2015:
+
+| Afirmacion | Simulado | Real (Lending Club) | |
+|---|---|---|---|
+| El scorecard le gana al machine learning (01) | AUC 0,733 vs. ≤ 0,716 | 0,647 vs. 0,660 | se da vuelta |
+| La restriccion monotona es gratis (05) | 0,7695 vs. 0,7655 | 0,6602 vs. 0,6595 | se mantiene |
+| Volumen de revision conforme con α = 0,10 (05) | 50,1% | 63,7% | peor |
+| Binning optimo sobre deciles, IV (06) | +13% | +6,5%, AUC a menos de 0,2 pp | menor |
+| Riesgo de vida que llega despues del mes 12 (03) | 50,5% | 72,4% | mayor |
+| Correlacion de activos de un grado (10) | 0,12-0,24 | 0,00-0,06 | mucho menor |
+| Gatillo de reentrenamiento (12, 22) | se dispara con el drift plantado | se dispara por AUC todos los trimestres, nunca por PSI, y no ve una PD subestimada en 2,5 puntos | no ve el cambio real |
 
 ---
 
@@ -859,7 +883,9 @@ verificacion independiente:
 ### Estandar de testing
 
 Las tecnicas 03-11 traen **325 tests**; las tecnicas 12-26 suman **245 mas**
-(el ciclo de vida de produccion alrededor de cualquier modelo); la tecnica 01
+(el ciclo de vida de produccion alrededor de cualquier modelo); la tecnica
+27 trae 22, sobre datos de prueba con la forma del archivo real para que la
+CI no necesite descargar nada; la tecnica 01
 reporta 23 aprobados (mas 10 que se saltan sin un motor en C compilado
 localmente) en su propio README; la tecnica 02 suma sus propios tests de
 loss/entrenamiento del MLP y de persistencia de metricas en DuckDB
@@ -904,13 +930,13 @@ saliera con la guarda ya puesta).
 
 ### Integracion continua
 
-Cada push y pull request a `main` corre **29 jobs independientes en
+Cada push y pull request a `main` corre **30 jobs independientes en
 `ubuntu-latest`**, un solo workflow, tres lenguajes —
 [`.github/workflows/tests.yml`](.github/workflows/tests.yml):
 
 | Lenguaje | Jobs | Que corre cada job | Ultima corrida verde |
 |---|---|---|---|
-| Python | 25 (tecnica 01, despues 03-26) | `pytest tests/ -q` | **29/29 jobs aprobados** |
+| Python | 26 (tecnica 01, despues 03-27) | `pytest tests/ -q` | **30/30 jobs aprobados** |
 | Python (tecnica 02) | 1 | `pytest tests/ -q` con R presente para que compile el wheel de `rpy2` | incluido arriba |
 | R (`testthat`) | 2 (tecnicas 01 y 02) | Binning WOE/IV, escalamiento PDO del scorecard (01); simulacion del panel de LGD empirica y calibracion Beta/Logit (02) | **50 aserciones aprobadas** |
 | C (`gcc`, `make test`) | 1 (`score_engine.c` de la tecnica 01) | Correctitud numerica exacta, manejo seguro de NULL/fuera de rango, consistencia entre lote y fila individual | **1020 aserciones aprobadas**² |
@@ -976,6 +1002,15 @@ La tecnica 02 es la excepcion: usa **datos macro reales de Chile** desde la API
 del Banco Mundial para su calibracion de LGD y sus escenarios de stress, porque
 esa mitad del proyecto trata de econometria sobre series reales y no de
 recuperar parametros conocidos.
+
+La tecnica 27 es el complemento. Las afirmaciones que no son recuperaciones
+(que metodo ordena mejor, cuanto cuesta una restriccion, que parte de la
+cartera manda a revision una regla conforme, cuando llegan los defaults, si
+el monitoreo de drift se dispara) se vuelven a correr sobre 621.022 creditos
+reales de Lending Club con el mismo codigo. Los datos reales debilitan la
+senal (IV total de 0,50 contra 2,12 en la tecnica 06), y varios hallazgos se
+achican o se dan vuelta; la tabla esta en
+[Resultados de un vistazo](#sobre-una-cartera-real-que-sobrevivio).
 
 Una cosa que deliberadamente *no* aparece en ningun lado de este README: un
 grafico comparando el AUC de las ocho tecnicas. Corren sobre procesos
@@ -1118,6 +1153,7 @@ credit-risk-scoring-lab/
 ├── 24-model-lineage-governance/            reconstruccion de linaje de dos saltos
 ├── 25-api-inference-service/               FastAPI /health, /predict
 ├── 26-lab-summary-dashboard/               auditoria HEALTHY/DEGRADED de 01-25
+├── 27-real-portfolio-lending-club/         las afirmaciones del laboratorio sobre 621.022 creditos reales
 └── LICENSE
 ```
 
@@ -1145,8 +1181,8 @@ solo en esta tabla.
 
 | | Item | Evidencia |
 |---|---|---|
-| ✅ | CI poliglota automatizado (29/29 jobs en GitHub Actions: Python + R + C) | [Integracion continua](#integracion-continua); ultima corrida verde enlazada desde el badge arriba de esta pagina |
-| ✅ | Cobertura de tests (570 pytest en 03-26, 23 + 2 en la 01, 50 testthat, 1020 aserciones C) | Misma seccion -- unidades distintas, mantenidas separadas en vez de sumarse en un numero unico enganoso |
+| ✅ | CI poliglota automatizado (30/30 jobs en GitHub Actions: Python + R + C) | [Integracion continua](#integracion-continua); ultima corrida verde enlazada desde el badge arriba de esta pagina |
+| ✅ | Cobertura de tests (592 pytest en 03-27, 23 + 2 en la 01, 50 testthat, 1020 aserciones C) | Misma seccion -- unidades distintas, mantenidas separadas en vez de sumarse en un numero unico enganoso |
 | ✅ | Motor en C desacoplado (~142,8M filas/seg, chequeos defensivos NaN/rango) | [Seccion 6 de la tecnica 01](01-polyglot-scorecard-r-python-c/README.es.md#6-motor-en-c--correctitud-y-desempeno); `c/tests/test_score_engine.c` ejercita directamente los caminos NULL/fuera-de-rango |
 | ✅ | Scorecard WOE + regresion Beta / LGD en R (`mgcv`/`AER` validados) | [Tecnica 01](#01--scorecard-poliglota-r--python--c) (WOE/PDO) y [tecnica 02](#02--interoperabilidad-bidireccional-rpython) (LGD Tobit/GAM); ambos paquetes instalados y ejercitados por el job de CI de `testthat`, no solo importados |
 | ✅ | 11 tecnicas de riesgo operacionales, chequeadas por fuga de datos temporal | Se reviso la metodologia de split de cada tecnica (ver la nota de validacion en cada README): 9 son simulaciones transversales sin dimension calendario, donde un split aleatorio estratificado es la eleccion *correcta*, no un atajo; la tecnica 06 corre un split out-of-time genuino por vintage; la tecnica 03 queda marcada como el vacio honesto -- tiene cohortes vintage que no usa para OOT, a diferencia de la 06 |

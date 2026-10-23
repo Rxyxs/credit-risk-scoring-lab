@@ -1,0 +1,5 @@
+# The Lending Club file (375 MB) and FRED series are downloaded, never committed.
+data/raw/*
+!data/raw/.gitkeep
+__pycache__/
+.pytest_cache/
