@@ -5,7 +5,7 @@
 **A closed-loop MLOps platform for credit risk, not a notebook of models: eleven from-scratch statistical techniques for the scoring question itself, wired into fifteen more that detect drift, retrain, deploy, canary-test, cut over, monitor realized performance, and audit the whole system — honestly, including the state where retraining fired and nobody closed the loop yet.**
 
 [![tests](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml/badge.svg)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
-[![CI](https://img.shields.io/badge/CI-29%2F29%20jobs%20passing-brightgreen?logo=githubactions&logoColor=white)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
+[![CI](https://img.shields.io/badge/CI-30%2F30%20jobs%20passing-brightgreen?logo=githubactions&logoColor=white)](https://github.com/Rxyxs/credit-risk-scoring-lab/actions/workflows/tests.yml)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![R](https://img.shields.io/badge/R-4.4-276DC3?logo=r&logoColor=white)](https://www.r-project.org/)
 [![C](https://img.shields.io/badge/C-MSVC-A8B9CC?logo=c&logoColor=white)](https://en.wikipedia.org/wiki/C_(programming_language))
@@ -50,6 +50,11 @@ from scratch instead of imported, why the data is simulated from a known
 process in 01–11, and why 12–26 were built by actually running the chain
 end to end — generating real drift, real snapshots, real cutovers — rather
 than trusting a test suite's seeded fixtures alone.
+
+**Technique 27** then takes the claims that do not need a planted truth and
+checks them on a real book: 621,022 Lending Club loans, run through the
+lab's own code. Some survive, some shrink to noise, and one reverses;
+[the table is below](#on-a-real-book-what-survived).
 
 ## Architecture: five phases, end to end
 
@@ -128,6 +133,7 @@ was trained, nobody ran it back through promotion yet — and reported
 | 24 | [`24-model-lineage-governance`](24-model-lineage-governance) | Model lineage & governance | Dual-hop trace: `champion_model.pkl` → `active_shadow_model.pkl` → `shadow_model_<timestamp>.pkl` | `pytest -q` |
 | 25 | [`25-api-inference-service`](25-api-inference-service) | Real-time inference API | `POST /predict`: `503` not `500` with no Champion, `400` not `422` on bad input | `pytest -v` |
 | 26 | [`26-lab-summary-dashboard`](26-lab-summary-dashboard) | Lab summary dashboard | Audits all 25 others into one `HEALTHY`/`DEGRADED` verdict | `pytest -q` |
+| 27 | [`27-real-portfolio-lending-club`](27-real-portfolio-lending-club) | The lab on a real book | 621,022 Lending Club loans: the monotonic constraint is still free, the scorecard no longer wins | `pytest -q` |
 
 ## Staff highlights
 
@@ -268,6 +274,22 @@ flowchart LR
 | [09](#09--reject-inference--selection-bias) | Reject inference | Bivariate probit recovers ρ to **0.02** of the truth with an exclusion instrument | Without one, the same model is off by **0.36–0.44** — sometimes the wrong sign |
 | [10](#10--through-the-cycle-vs-point-in-time-pd) | TTC vs. PIT PD | Point-in-time capital swings **173.2 points** of RWA density across one cycle | The through-the-cycle line is flat by construction — a modelling choice, not a finding |
 | [11](#11--federated-credit-scoring) | Federated scoring | FedAvg matches the centralized oracle's calibration (**+0.18 pp** bias vs. **+4.45 pp** local-only) | One bank alone misprices national risk by **24.6 points** — and its AUC still looks fine |
+
+### On a real book: what survived
+
+[Technique 27](27-real-portfolio-lending-club) runs the claims above that are
+not recoveries on **621,022 real Lending Club loans** (36-month, issued
+2007-2015), with the lab's own code, fitted on 2007-2013 and tested on 2015:
+
+| Claim | Simulated | Real (Lending Club) | |
+|---|---|---|---|
+| The scorecard beats machine learning (01) | AUC 0.733 vs. ≤ 0.716 | 0.647 vs. 0.660 | reverses |
+| The monotonic constraint is free (05) | 0.7695 vs. 0.7655 | 0.6602 vs. 0.6595 | holds |
+| Conformal review volume at α = 0.10 (05) | 50.1% | 63.7% | worse |
+| Optimal binning over deciles, IV (06) | +13% | +6.5%, AUC within 0.2 pp | smaller |
+| Lifetime risk arriving after month 12 (03) | 50.5% | 72.4% | larger |
+| Asset correlation of a rating grade (10) | 0.12-0.24 | 0.00-0.06 | far smaller |
+| Retraining trigger (12, 22) | fires on the planted drift | fires on AUC every quarter, never on PSI, and misses a 2.5-point PD understatement | misses the real change |
 
 ---
 
@@ -810,7 +832,8 @@ Each component below is built directly and pinned to an independent check:
 ### Testing standard
 
 Techniques 03–11 ship **325 tests**; techniques 12–26 ship **245 more** (the
-production lifecycle around any one model); technique 01 reports 23 passing
+production lifecycle around any one model); technique 27 ships 22, on
+fixtures shaped like the real file so CI needs no download; technique 01 reports 23 passing
 (plus 10 skipped without a locally compiled C engine) in its own README;
 technique 02 adds its own MLP loss/training and DuckDB metrics-persistence
 tests (`02-bidirectional-r-python-interop/tests/`), run locally rather than
@@ -853,12 +876,12 @@ in place).
 
 ### Continuous integration
 
-Every push and pull request to `main` runs **29 independent jobs on
+Every push and pull request to `main` runs **30 independent jobs on
 `ubuntu-latest`**, one workflow, three languages — [`.github/workflows/tests.yml`](.github/workflows/tests.yml):
 
 | Language | Jobs | What each job runs | Latest green run |
 |---|---|---|---|
-| Python | 25 (technique 01, then 03–26) | `pytest tests/ -q` | **29/29 jobs passing** |
+| Python | 26 (technique 01, then 03–27) | `pytest tests/ -q` | **30/30 jobs passing** |
 | Python (technique 02) | 1 | `pytest tests/ -q` with R present so `rpy2`'s wheel can build | included above |
 | R (`testthat`) | 2 (techniques 01 and 02) | WOE/IV binning, PDO scorecard scaling (01); empirical LGD panel simulation and Beta/Logit calibration (02) | **50 assertions passed** |
 | C (`gcc`, `make test`) | 1 (technique 01's `score_engine.c`) | Exact numeric correctness, NULL/out-of-range safety, batch-vs-single-row consistency | **1020 assertions passed**² |
@@ -917,6 +940,14 @@ Technique 02 is the exception: it pulls **real Chilean macro data** from the
 World Bank API for its LGD calibration and stress scenarios, because that half
 of the project is about econometrics on real series rather than recovery of
 known parameters.
+
+Technique 27 is the complement. The claims that are not recoveries (which
+method ranks better, what a constraint costs, how much of the book a
+conformal rule sends to review, when defaults arrive, whether drift
+monitoring fires) are run again on 621,022 real Lending Club loans with the
+same code. Real data weakens the signal (total IV 0.50 against 2.12 in
+technique 06), and several findings shrink or reverse; the table is under
+[Results at a glance](#on-a-real-book-what-survived).
 
 One thing deliberately *not* shown anywhere in this README: a chart comparing
 AUC across the eight techniques. They run on different generating processes with
@@ -1045,6 +1076,7 @@ credit-risk-scoring-lab/
 ├── 24-model-lineage-governance/            dual-hop lineage reconstruction
 ├── 25-api-inference-service/               FastAPI /health, /predict
 ├── 26-lab-summary-dashboard/               HEALTHY/DEGRADED audit of 01-25
+├── 27-real-portfolio-lending-club/         the lab's claims on 621,022 real loans
 └── LICENSE
 ```
 
@@ -1071,8 +1103,8 @@ resting on this table alone.
 
 | | Item | Evidence |
 |---|---|---|
-| ✅ | Polyglot CI automated (29/29 jobs on GitHub Actions: Python + R + C) | [Continuous integration](#continuous-integration); latest green run linked from the badge at the top of this page |
-| ✅ | Test coverage (570 pytest across 03–26, 23 + 2 in 01, 50 testthat, 1020 C assertions) | Same section — different units, kept separate rather than summed into one misleading number |
+| ✅ | Polyglot CI automated (30/30 jobs on GitHub Actions: Python + R + C) | [Continuous integration](#continuous-integration); latest green run linked from the badge at the top of this page |
+| ✅ | Test coverage (592 pytest across 03–27, 23 + 2 in 01, 50 testthat, 1020 C assertions) | Same section — different units, kept separate rather than summed into one misleading number |
 | ✅ | Decoupled C engine (~142.8M rows/sec, defensive NaN/bounds checks) | [Section 6 of technique 01](01-polyglot-scorecard-r-python-c/README.md#6-c-engine--correctness-and-performance); `c/tests/test_score_engine.c` exercises the NULL/out-of-range paths directly |
 | ✅ | WOE scorecard + Beta regression / LGD in R (`mgcv`/`AER` validated) | [Technique 01](#01--polyglot-scorecard-r--python--c) (WOE/PDO) and [technique 02](#02--bidirectional-rpython-interop) (Tobit/GAM LGD); both packages installed and exercised by the `testthat` CI job, not just imported |
 | ✅ | 11 risk techniques operational, checked for temporal data leakage | Every technique's split methodology reviewed (see each README's validation note): 9 are cross-sectional simulations with no calendar dimension, where a stratified random split is the *correct* choice, not a shortcut; technique 06 runs a genuine vintage-based out-of-time split; technique 03 is flagged as the one honest gap — it has vintage cohorts it doesn't use for OOT, unlike 06 |
