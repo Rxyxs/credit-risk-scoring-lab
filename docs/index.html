@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Credit Risk Scoring Lab</title>
-<meta name="description" content="**A closed-loop MLOps platform for credit risk, not a notebook of models: eleven from-scratch statistical techniques for the scoring question itself, wired into fifteen more that d">
+<meta name="description" content="A closed-loop MLOps platform for credit risk, not a notebook of models: eleven from-scratch statistical techniques for the scoring question itself, wired into fifteen more that det">
 <style>
   :root { --bg:#FBFAF8; --surface:#FFF; --ink:#23201D; --muted:#6B645D; --line:#E3DED7; --accent:#B5553D; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
@@ -47,74 +47,81 @@
 <h2>01 · Polyglot scorecard (R + Python + C)</h2>
 <figure>
 <img src="figures/c_engine_benchmark.png" alt="Scoring engine benchmark" loading="lazy">
-<figcaption>*Throughput over 1,000,000 rows, log scale. The compiled engine scores 270.6M</figcaption>
+<figcaption>Throughput over 1,000,000 rows, log scale. The compiled engine scores 270.6M rows/second against 24.3M for vectorised NumPy and 0.97M for a pure-Python loop — and produces the same number as R&#x27;s scorecard to within 4.79e-11, which is the part that makes the speed usable rather than merely impressive.</figcaption>
 </figure>
 <h2>02 · Bidirectional R↔Python interop</h2>
 <figure>
 <img src="figures/combined_risk_heatmap.png" alt="Combined credit and market risk heatmap" loading="lazy">
-<figcaption>*The centrepiece: expected loss per credit-risk band stressed against three</figcaption>
+<figcaption>The centrepiece: expected loss per credit-risk band stressed against three market-volatility regimes — one number a risk committee can read, produced by a Python ML model and an R econometric model in the same figure.</figcaption>
 </figure>
 <h2>03 · Lifetime PD from survival analysis</h2>
 <figure>
 <img src="figures/hazard_base_vs_verdad.png" alt="Estimated hazard vs. the true generating hazard" loading="lazy">
-<figcaption>*The estimated hazard against the one the simulator actually used. The seasoning</figcaption>
+<figcaption>The estimated hazard against the one the simulator actually used. The seasoning hump — risk climbing after origination, peaking around month 8-10, then declining — is recovered, and the curve gets visibly noisier past month 25 as loans with 12- and 24-month terms leave the book and thin the risk set. That degradation is in the chart because it is real.</figcaption>
 </figure>
 <figure>
 <img src="figures/pd_term_structure.png" alt="PD term structure by risk band" loading="lazy">
-<figcaption>*Left: cumulative PD by horizon for each risk band, with the 12-month</figcaption>
+<figcaption>Left: cumulative PD by horizon for each risk band, with the 12-month Stage 1 cut-off marked. Right: when the risk actually arrives across the portfolio. Band A reaches 2.4% at 12 months and 6.6% over the full life — almost two thirds of its risk sits beyond the cut-off a 12-month model can see.</figcaption>
 </figure>
 <h2>04 · Bayesian hierarchical scorecard</h2>
 <figure>
 <img src="figures/shrinkage_por_segmento.png" alt="Shrinkage by segment" loading="lazy">
-<figcaption>*Left: each segment&#x27;s estimated effect with and without pooling, against how</figcaption>
+<figcaption>Left: each segment&#x27;s estimated effect with and without pooling, against how many training cases it has (log scale). The grey lines are the shrinkage — long where the data is thin, almost invisible where it is plentiful. Right: recovery against the simulator&#x27;s true effects; the pooled estimates sit closer to the diagonal.</figcaption>
 </figure>
 <h2>05 · Monotonic constraints + conformal decisioning</h2>
 <figure>
 <img src="figures/auditoria_monotonia.png" alt="Monotonicity audit" loading="lazy">
-<figcaption>*The unconstrained model violates monotonicity for up to 97.6% of applicants on</figcaption>
+<figcaption>The unconstrained model violates monotonicity for up to 97.6% of applicants on a single variable, with reversals as large as 14.5 points of PD. The constrained model&#x27;s bars are invisible because they are zero — by construction, not by luck. Note also that its <em>average</em> response curve looks almost fine: the violations are individual-level, which is exactly the level a customer complaint or a supervisory review operates at.</figcaption>
 </figure>
 <figure>
 <img src="figures/cobertura_conforme.png" alt="Conformal coverage by class" loading="lazy">
-<figcaption>*Why the class-conditional (Mondrian) variant matters. Left: coverage tracks the</figcaption>
+<figcaption>Why the class-conditional (Mondrian) variant matters. Left: coverage tracks the target for both classes. Right: the marginal version hits the same global target while covering the paying class at 99% and letting the default class fall to 57%. With a 23% base rate, &quot;90% coverage&quot; computed over the pooled population is almost entirely a statement about the majority class.</figcaption>
 </figure>
 <h2>06 · Optimal-binning scorecard</h2>
 <figure>
 <img src="figures/woe_por_metodo.png" alt="WOE by binning method" loading="lazy">
-<figcaption>*The same three variables, cut three ways. The DP produces a clean monotone WOE</figcaption>
+<figcaption>The same three variables, cut three ways. The DP produces a clean monotone WOE in every case; the tree zig-zags on line utilisation (down, up, down, up across consecutive bins) — a card no one wants to defend. On age, whose true effect is U-shaped, the monotone DP deliberately gives up IV rather than fake a shape the domain does not have.</figcaption>
 </figure>
 <figure>
 <img src="figures/psi_csi_por_vintage.png" alt="PSI and CSI by vintage" loading="lazy">
-<figcaption>*Left: PSI stays under 0.025 for eighteen stable vintages — no false alarms —</figcaption>
+<figcaption>Left: PSI stays under 0.025 for eighteen stable vintages — no false alarms — and jumps to 0.36 in the exact cohort where the population breaks. Right: CSI per variable names the culprit rather than just raising a flag; line utilisation is the variable the simulator shifted hardest.</figcaption>
 </figure>
 <h2>07 · Fair lending bias audit</h2>
 <figure>
 <img src="figures/deteccion_de_proxies.png" alt="Proxy detection" loading="lazy">
-<figcaption>*Left: each feature&#x27;s group signal against its risk signal. Everything sits</figcaption>
+<figcaption>Left: each feature&#x27;s group signal against its risk signal. Everything sits below the diagonal — earning its place — except <code>sector</code>, which carries far more information about gender than about default. Right: the same as a ratio on a log scale, with the headline above it: a model that never sees gender can reconstruct it from its own inputs with AUC 0.768.</figcaption>
 </figure>
 <h2>08 · Differentially private scoring</h2>
 <figure>
 <img src="figures/privacidad_vs_utilidad.png" alt="Privacy versus utility" loading="lazy">
-<figcaption>*Left: what privacy costs — AUC against ε, averaged over ten independent runs</figcaption>
+<figcaption>Left: what privacy costs — AUC against ε, averaged over ten independent runs with one standard deviation, against the non-private baseline. Right: what it buys — the PD gap between canaries the model trained on and identical ones it never saw. The error bars on the right are the finding: under noise the effect stops being distinguishable from zero rather than cleanly disappearing.</figcaption>
 </figure>
 <figure>
 <img src="figures/detectabilidad_de_la_fuga.png" alt="Leak detectability" loading="lazy">
-<figcaption>*The same data asked properly: not &quot;how much leakage&quot; but &quot;can it be told apart</figcaption>
+<figcaption>The same data asked properly: not &quot;how much leakage&quot; but &quot;can it be told apart from zero&quot;. Red bars are budgets where the canary effect survives its own run-to-run variance. The leak stops being detectable between ε = 2 and ε = 1.</figcaption>
 </figure>
 <h2>09 · Reject inference &amp; selection bias</h2>
 <figure>
 <img src="figures/recuperacion_de_rho.png" alt="Recovery of rho" loading="lazy">
-<figcaption>*Grey is the truth. Without an exclusion restriction (red) the model invents</figcaption>
+<figcaption>Grey is the truth. Without an exclusion restriction (red) the model invents selection bias that doesn&#x27;t exist in MAR and misses bias that is very real in MNAR — sometimes the wrong sign entirely. With a genuine instrument (green, a branch-month commercial-pressure variable that moves approval but not true risk) the same estimator lands within 0.02 of both true values.</figcaption>
 </figure>
 <h2>10 · Through-the-cycle vs. point-in-time PD</h2>
 <figure>
 <img src="figures/capital_pit_vs_ttc.png" alt="PIT vs TTC capital" loading="lazy">
-<figcaption>*Grey: RWA density using the through-the-cycle PD — flat by construction.</figcaption>
+<figcaption>Grey: RWA density using the through-the-cycle PD — flat by construction. Orange: the same portfolio, the same Basel formula, recalibrated every year with the point-in-time PD. It swings from 70.4% to 243.6% of exposure, and the peaks land exactly on the two marked recessions.</figcaption>
 </figure>
 <h2>11 · Federated credit scoring</h2>
 <figure>
 <img src="figures/calibracion_por_banco.png" alt="Calibration by bank" loading="lazy">
-<figcaption>*Left: each bank&#x27;s own model, trained only on its own customers, applied to</figcaption>
+<figcaption>Left: each bank&#x27;s own model, trained only on its own customers, applied to the national population it never saw. One bank&#x27;s calibration bias is off the chart. Right: the same comparison averaged across banks, by policy.</figcaption>
 </figure>
+<h2>27 · On a real book: Lending Club, 621,022 loans</h2>
+<p>Techniques 01-11 run on simulated books because their claims are recoveries of a planted truth. Folder 27 takes the claims that are not, and runs them through the same code on real Lending Club loans issued 2007-2015, fitted on 2007-2013 and tested on 2015. The monotonic constraint is still free and conformal coverage holds a year later; the scorecard no longer beats gradient boosting, the binning methods tie, 72% of lifetime risk arrives after month 12 (50.5% simulated), a rating grade&#x27;s asset correlation is 0.00-0.06 rather than 0.12-0.24, and the retraining rule fires on AUC every quarter while missing a 2.5-point PD understatement.</p>
+<figure>
+<img src="figures/comparacion_modelos.png" alt="Model comparison on the real book" loading="lazy">
+<figcaption>AUC on the 2015 loans for models fitted on 2007-2013. The four binnings tie, gradient boosting beats the scorecard, the monotonic constraint costs nothing, and Lending Club&#x27;s own sub-grade, priced with the full credit report, beats them all.</figcaption>
+</figure>
+<p><a href="https://github.com/Rxyxs/credit-risk-scoring-lab/tree/main/27-real-portfolio-lending-club">All five comparisons, the figures and the caveats</a>.</p>
 <footer>
 Pablo Reyes · <a href="https://github.com/Rxyxs/credit-risk-scoring-lab">github.com/Rxyxs/credit-risk-scoring-lab</a> · MIT<br><br>
 Every figure on this page is produced by the repository's pipeline. For the full method and its limitations, see the README.
